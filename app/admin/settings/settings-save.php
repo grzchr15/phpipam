@@ -11,6 +11,7 @@ require_once( dirname(__FILE__) . '/../../../functions/functions.php' );
 $Database 	= new Database_PDO;
 $User 		= new User ($Database);
 $Admin	 	= new Admin ($Database);
+$Tools	 	= new Tools ($Database);
 $Result 	= new Result ();
 
 # verify that user is logged in
@@ -84,6 +85,7 @@ $values = array("id"=>1,
 				"enablePowerDNS"      =>$Admin->verify_checkbox(@$_POST['enablePowerDNS']),
 				"updateTags"          =>$Admin->verify_checkbox(@$_POST['updateTags']),
 				"enforceUnique"       =>$Admin->verify_checkbox(@$_POST['enforceUnique']),
+				"enableRouting"       =>$Admin->verify_checkbox(@$_POST['enableRouting']),
 				//"enableDHCP"        =>$Admin->verify_checkbox(@$_POST['enableDHCP']),
 				"enableFirewallZones" =>$Admin->verify_checkbox(@$_POST['enableFirewallZones']),
 				"maintaneanceMode" 	  =>$Admin->verify_checkbox(@$_POST['maintaneanceMode']),
@@ -103,5 +105,8 @@ $values = array("id"=>1,
 				"scanFPingPath"       =>@$_POST['scanFPingPath'],
 				"scanMaxThreads"      =>@$_POST['scanMaxThreads']
 				);
+// Update linked_field indexes
+$Tools->verify_linked_field_indexes($_POST['link_field']);
+
 if(!$Admin->object_modify("settings", "edit", "id", $values))	{ $Result->show("danger",  _("Cannot update settings"), true); }
 else															{ $Result->show("success", _("Settings updated successfully"), true); }

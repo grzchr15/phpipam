@@ -1,14 +1,3 @@
-<script type="text/javascript">
-$(document).ready(function() {
-	if ($("[rel=tooltip]").length) { $("[rel=tooltip]").tooltip(); }
-
-	return false;
-});
-</script>
-
-
-<table id="logs" class="table sorted nosearch nopagination table-condensed table-hover table-top" style="margin-top:10px;" data-cookie-id-table="show_logs">
-
 <?php
 
 /**
@@ -16,7 +5,7 @@ $(document).ready(function() {
  **********************************/
 
 /* required functions */
-if(!is_object($User)) {
+if(!isset($User) || !is_object($User)) {
 
 	/* functions */
 	require_once( dirname(__FILE__) . '/../../../functions/functions.php' );
@@ -39,6 +28,17 @@ if ( empty($_POST['Informational']) && empty($_POST['Notice']) && empty($_POST['
     $_POST['Warning']       = "Warning";
 }
 ?>
+
+<script>
+$(document).ready(function() {
+	if ($("[rel=tooltip]").length) { $("[rel=tooltip]").tooltip(); }
+
+	return false;
+});
+</script>
+
+
+<table id="logs" class="table sorted nosearch nopagination table-condensed table-hover table-top" style="margin-top:10px;" data-cookie-id-table="show_logs">
 
 <!-- print headers -->
 <thead>
@@ -73,6 +73,7 @@ if(!isset($_POST['direction'])) 									{ $_POST['direction'] = ""; }
 
 /* get requested logs */
 $logs = $Log->fetch_logs($logCount, $_POST['direction'], $_POST['lastId'], $highestId, $informational, $notice, $warning);
+if (!is_array($logs)) { $logs = array(); }
 
 $x = 0;
 foreach ($logs as $log) {

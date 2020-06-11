@@ -140,8 +140,15 @@ class Subnets_controller extends Common_api_functions {
 		if(!isset($this->_params->isFolder)) { $this->_params->isFolder = "0"; }
 		elseif($this->_params->isFolder==1)	 { unset($this->_params->subnet, $this->_params->mask); }
 
-		if     ($this->_params->id2=="first_subnet") { $this->post_find_free_subnet(Subnets::SEARCH_FIND_FIRST); }
-		elseif ($this->_params->id2=="last_subnet")  { $this->post_find_free_subnet(Subnets::SEARCH_FIND_LAST); }
+		if ($this->_params->id2=="first_subnet" || $this->_params->id2=="last_subnet") {
+			$this->validate_subnet_id ();
+
+			// Obtain exclusive MySQL lock so parallel API requests on the same object are thread safe.
+			$Lock = new LockForUpdate($this->Database, 'subnets', $this->_params->id);
+
+			$direction = ($this->_params->id2=="first_subnet") ? Subnets::SEARCH_FIND_FIRST : Subnets::SEARCH_FIND_LAST;
+			$this->post_find_free_subnet($direction);
+		}
 
 		# validate parameters
         $this->validate_create_parameters ();
@@ -190,10 +197,12 @@ class Subnets_controller extends Common_api_functions {
 	 * Reads subnet functions
 	 *
 	 *	Identifier can be:
+	 *		- /								// returns all subnets in all sections
 	 *		- /{id}/
 	 *		- /custom_fields/				// returns custom fields
 	 *		- /cidr/{subnet}/				// subnets in CIDR format
 	 *		- /search/{subnet}/				// subnets in CIDR format (same as above)
+	 *		- /overlaping/{subnet}/			// returns all overlapping subnets
 	 *		- /{id}/usage/				    // returns subnet usage
 	 *		- /{id}/slaves/ 			    // returns all immediate slave subnets
 	 *		- /{id}/slaves_recursive/ 	    // returns all slave subnets recursively
@@ -209,20 +218,32 @@ class Subnets_controller extends Common_api_functions {
 	 * @return array
 	 */
 	public function GET () {
+		// all
+		if (!isset($this->_params->id) || $this->_params->id == "all") {
+			$result = $this->read_all_subnets();
+			// check result
+			if ($result===false)						{ $this->Response->throw_exception(500, "Unable to read subnets"); }
+			else										{ return array("code"=>200, "data"=>$this->prepare_result($result, "subnets", true, true)); }
+		}
 		// cidr check
 		// check if id2 is set ?
-		if(isset($this->_params->id2)) {
+		elseif(isset($this->_params->id2)) {
 			// is IP address provided
-			if($this->_params->id=="cidr") {
+			if($this->_params->id=="cidr" || $this->_params->id=="search") {
 				$result = $this->read_search_subnet ();
 				// check result
 				if($result==false)						{ $this->Response->throw_exception(200, "No subnets found"); }
 				else									{ return array("code"=>200, "data"=>$this->prepare_result ($result, null, true, true)); }
 			}
-			else {
-				// validate id
-				$this->validate_subnet_id ();
+
+			if($this->_params->id=="overlapping") {
+				$result = $this->read_overlapping_subnet ();
+				if($result==false)						{ $this->Response->throw_exception(200, "No subnets found"); }
+				else									{ return array("code"=>200, "data"=>$this->prepare_result ($result, null, true, true)); }
 			}
+
+			// validate id
+			$this->validate_subnet_id ();
 
 			// addresses in subnet
 			if($this->_params->id2=="addresses") {
@@ -284,13 +305,6 @@ class Subnets_controller extends Common_api_functions {
 			// check result
 			if($result==false)							{ $this->Response->throw_exception(400, "Invalid subnet Id (".$this->_params->id.")"); }
 			else										{ return array("code"=>200, "data"=>$this->prepare_result ($result, "subnets", true, true)); }
-		}
-		// all
-		elseif ($this->_params->id=="all") {
-			$result = $this->read_all_subnets();
-			// check result
-			if ($result===false)						{ $this->Response->throw_exception(500, "Unable to read subnets"); }
-			else										{ return array("code"=>200, "data"=>$this->prepare_result($result, "subnets", true, true)); }
 		}
 		// false
 		else 											{ $this->Response->throw_exception(404, 'Invalid Id'); }
@@ -501,13 +515,12 @@ class Subnets_controller extends Common_api_functions {
 		// validate input parmeters
 		if(!is_numeric($this->_params->number))			{ $this->Response->throw_exception(400, "Invalid number of new subnets"); }
 		if(!isset($this->_params->group))				{ $this->_params->group = "yes"; }
-		if(!isset($this->_params->strict))				{ $this->_params->strict = "yes"; }
 		if(!isset($this->_params->copy_custom))			{ $this->_params->copy_custom = "yes"; }
 
 		// fetch old subnet
 		$subnet_old = $this->Subnets->fetch_subnet ("id", $this->_params->id);
 		// create new subnets and move addresses
-		$this->Subnets->subnet_split ($subnet_old, $this->_params->number, $this->_params->prefix, $this->_params->group, $this->_params->strict, $this->_params->copy_custom);
+		$this->Subnets->subnet_split ($subnet_old, $this->_params->number, $this->_params->prefix, $this->_params->group, $this->_params->copy_custom);
 
 		//set result
 		return array("code"=>200, "message"=>"Subnet splitted");
@@ -741,33 +754,41 @@ class Subnets_controller extends Common_api_functions {
 		// fetch
 		$results = $this->Subnets->fetch_all_subnets();
 
-		// add nameservers, GW, permission and location for each network found
-		if($results!==false) {
-			foreach($results as $key => $result) {
-				$ns = $this->read_subnet_nameserver($result->nameserverId);
-				if ($ns!==false) {
-					$result->nameservers = $ns;
-				}
+		if (!is_array($results))
+			return false;
 
-				$gateway = $this->read_subnet_gateway ($result->id);
-				if ( $gateway!== false) {
-					$result->gatewayId = $gateway->id;
-					$gateway = $this->transform_address ($gateway);
-					$result->gateway = $gateway;
-				}
-
-				$result->permissions = $this->User->get_user_permissions_from_json($result->permissions);
-
-				// location details
-				if(!empty($result->location)) {
-					$result->location = $this->Tools->fetch_object ("locations", "id", $result->location);
-				} else {
-					$result->location = array();
-				}
-
-    			// erase old values
-    			$results[$key] = $result;
+		$subnet_gws = [];
+		$gateways = $this->Subnets->fetch_multiple_objects('ipaddresses', 'is_gateway', 1);
+		if (is_array($gateways)) {
+			foreach($gateways as $gw) {
+				$subnet_gws[$gw->id][] = $this->transform_address ($gw);
 			}
+		}
+
+		// add nameservers, GW, permission and location for each network found
+		foreach($results as $key => $result) {
+			$ns = $this->read_subnet_nameserver($result->nameserverId);
+			if ($ns!==false) {
+				$result->nameservers = $ns;
+			}
+
+			if (isset($subnet_gws[$result->id])) {
+				$gateway = $subnet_gws[$result->id][0];
+				$result->gatewayId = $gateway->id;
+				$result->gateway = $gateway;
+			}
+
+			$result->permissions = $this->User->get_user_permissions_from_json($result->permissions);
+
+			// location details
+			if(!empty($result->location)) {
+				$result->location = $this->Tools->fetch_object ("locations", "id", $result->location);
+			} else {
+				$result->location = array();
+			}
+
+			// erase old values
+			$results[$key] = $result;
 		}
 
 		# result
@@ -805,7 +826,8 @@ class Subnets_controller extends Common_api_functions {
 	 * @return array|false
 	 */
 	private function read_subnet_nameserver ($nsid) {
-    	return $this->Tools->fetch_object ("nameservers", "id", $nsid);
+		if (!is_numeric($nsid) || $nsid <= 0) return false;
+		return $this->Tools->fetch_object ("nameservers", "id", $nsid);
 	}
 
 	/**
@@ -861,6 +883,18 @@ class Subnets_controller extends Common_api_functions {
 		}
 		# result
 		return !isset($result) ? false : $result;
+	}
+
+	/**
+	 * Searches for overlapping subnets in database (Supports IPv4 & IPv6)
+	 *
+	 * @access private
+	 * @return array|false
+	 */
+	private function read_overlapping_subnet () {
+		// Fetch overlapping subnets
+		$subnet = $this->Subnets->fetch_overlapping_subnets ($this->_params->id2.'/'.$this->_params->id3);
+		return is_array($subnet) ? $subnet : false;
 	}
 
 
@@ -1017,7 +1051,7 @@ class Subnets_controller extends Common_api_functions {
 		$section = $this->Tools->fetch_object ("sections", "id", $this->_params->sectionId);
 		if($section===false)																		{ $this->Response->throw_exception(400, "Invalid section Id"); }
 		// settings
-		$this->settings = $this->Tools->fetch_object ("settings", "id", 1);
+		$this->settings = $this->Tools->get_settings();
 
 		# get master subnet details for folder overrides
 		if($this->_params->masterSubnetId!=0)	{

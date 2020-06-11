@@ -50,16 +50,16 @@ if(@$config['requests_public']===false) {
 	<link rel="shortcut icon" href="css/images/favicon.png">
 
 	<!-- js -->
-	<script type="text/javascript" src="js/jquery-3.3.1.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-	<script type="text/javascript" src="js/login.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-	<script type="text/javascript" src="js/bootstrap.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-	<script type="text/javascript">
+	<script src="js/jquery-3.4.1.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+	<script src="js/login.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+	<script src="js/bootstrap.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+	<script>
 	$(document).ready(function(){
 	     if ($("[rel=tooltip]").length) { $("[rel=tooltip]").tooltip(); }
 	});
 	</script>
 	<!--[if lt IE 9]>
-	<script type="text/javascript" src="js/dieIE.js"></script>
+	<script src="js/dieIE.js"></script>
 	<![endif]-->
 </head>
 
@@ -118,8 +118,10 @@ if(@$config['requests_public']===false) {
 		# get language
 		$lang = $User->get_default_lang();
 
-		putenv("LC_ALL=".$lang->l_code);
-		setlocale(LC_ALL, $lang->l_code);					// set language
+		if (is_object($lang)) {
+			putenv("LC_ALL=".$lang->l_code);
+			setlocale(LC_ALL, $lang->l_code);					// set language
+		}
 		bindtextdomain("phpipam", "./functions/locale");	// Specify location of translation tables
 		textdomain("phpipam");								// Choose domain
 	}
@@ -127,7 +129,11 @@ if(@$config['requests_public']===false) {
 
 	<?php
 	# include proper subpage
-	if($_GET['page'] == "login") 				{ include_once('login_form.php'); }
+	if($_GET['page'] == "login") 				{
+		# disable main login form if you want use another authentification method by default (SAML, LDAP, etc.)
+		$include_main_login_form = !isset($config['disable_main_login_form']) || !$config['disable_main_login_form'];
+		if ($include_main_login_form) include_once('login_form.php');
+	}
 	else if ($_GET['page'] == "request_ip") 	{ include_once('request_ip_form.php'); }
 	else 										{ $_GET['subnetId'] = "404"; print "<div id='error'>"; include_once('app/error.php'); print "</div>"; }
 	?>
@@ -138,8 +144,10 @@ if(@$config['requests_public']===false) {
 		# deauthenticate user
 		if ( $User->is_authenticated()===true ) {
 			# print result
-			if($_GET['section']=="timeout")		{ $Result->show("success", _('You session has timed out')); }
-			else								{ $Result->show("success", _('You have logged out')); }
+			if(isset($_GET['section']) && $_GET['section']=="timeout")
+				$Result->show("success", _('You session has timed out'));
+			else
+				$Result->show("success", _('You have logged out'));
 
 			# write log
 			$Log->write( "User logged out", "User $User->username has logged out", 0, $User->username );

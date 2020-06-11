@@ -8,8 +8,11 @@
 # verify that user is logged in
 $User->check_user_session();
 
+# create csrf token
+$csrf = $User->Crypto->csrf_cookie ("create", "user-menu");
+
 ?>
-<script type="text/javascript">
+<script>
 //show clock
 $(function($) {
 	$('span.jclock').jclock();
@@ -61,7 +64,7 @@ $(document).ready(function() {
 		}).get().join(';');
 
 		//save user widgets
-		$.post('app/tools/user-menu/user-widgets-set.php', {widgets:widgets}, function(data) {});
+		$.post('app/tools/user-menu/user-widgets-set.php', {widgets:widgets, csrf_cookie:"<?php print $csrf; ?>"}, function(data) {});
 
 		//remove sortable class
 		$('#dashboard .row-fluid').sortable("destroy");
@@ -74,9 +77,9 @@ $(document).ready(function() {
 
 
 <!-- charts -->
-<script language="javascript" type="text/javascript" src="js/flot/jquery.flot.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-<script language="javascript" type="text/javascript" src="js/flot/jquery.flot.categories.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-<!--[if lte IE 8]><script language="javascript" type="text/javascript" src="js/flot/excanvas.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script><![endif]-->
+<script src="js/flot/jquery.flot.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+<script src="js/flot/jquery.flot.categories.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+<!--[if lte IE 8]><script src="js/flot/excanvas.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script><![endif]-->
 
 
 <div class="welcome" style="text-align:right">

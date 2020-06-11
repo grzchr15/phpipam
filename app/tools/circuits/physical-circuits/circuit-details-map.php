@@ -1,22 +1,25 @@
 <?php
 
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../../functions/include-only.php' );
+
 # perm check
-$User->check_module_permissions ("circuits", 1, true, false);
+$User->check_module_permissions ("circuits", User::ACCESS_R, true, false);
 
 // title
 print "<h4>"._('Map')."</h4>";
 print "<hr>";
 
 // check
-if ($User->settings->enableLocations=="1" && (!isset($gmaps_api_key) || strlen($gmaps_api_key)==0)) {
+if ($User->settings->enableLocations=="1" && strlen(Config::ValueOf('gmaps_api_key'))==0) {
     $Result->show("info text-center nomargin", _("Location: Google Maps API key is unset. Please configure config.php \$gmaps_api_key to enable."));
 }
-elseif ($locA->name!=="/" && $locB->name!=="/") {
+elseif ($locA->name_print!=="/" && $locB->name_print!=="/") {
 	$all_locations = array ();
 
 	// add point A and B
-	if ($locA->name!=="/") { $all_locations[] = $locA; }
-	if ($locB->name!=="/") { $all_locations[] = $locB; }
+	if ($locA->name_print!=="/") { $all_locations[] = $locA; }
+	if ($locB->name_print!=="/") { $all_locations[] = $locB; }
 
     // get all
     foreach ($all_locations as $k=>$l) {
@@ -45,7 +48,7 @@ elseif ($locA->name!=="/" && $locB->name!=="/") {
 
     // print
     if (sizeof($all_locations)>0) { ?>
-        <script type="text/javascript">
+        <script>
             $(document).ready(function() {
                 // init gmaps
                 var map = new GMaps({

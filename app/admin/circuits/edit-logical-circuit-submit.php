@@ -21,10 +21,10 @@ $User->check_maintaneance_mode ();
 
 # perm check popup
 if($_POST['action']=="edit") {
-    $User->check_module_permissions ("circuits", 2, true, false);
+    $User->check_module_permissions ("circuits", User::ACCESS_RW, true, false);
 }
 else {
-    $User->check_module_permissions ("circuits", 3, true, false);
+    $User->check_module_permissions ("circuits", User::ACCESS_RWA, true, false);
 }
 
 # validate csrf cookie
@@ -45,6 +45,7 @@ if($circuit['logical_cid'] == "") 	{ $Result->show("danger", _('Logical Circuit 
 $_POST['circuit_list'] = str_replace("undefined.", "", $_POST['circuit_list']);
 $id_list = $_POST['circuit_list']!=="" ? explode("." , rtrim($_POST['circuit_list'],".")) : [];
 if(sizeof($id_list ) != sizeof(array_unique($id_list))){  $Result->show("danger", _('Remove duplicates of circuit').'!', true); }
+if(($circuit['action'] == "add" && sizeof($id_list ) == 0)){  $Result->show("danger", _('No circuits selected').'!', true); }
 
 # fetch custom fields
 $custom = $Tools->fetch_custom_fields('circuitsLogical');
@@ -83,8 +84,6 @@ if(isset($update)) {
 # update circuit
 if(!$Admin->object_modify("circuitsLogical", $circuit['action'], "id", $values)) {}
 else {
-	$Result->show("success", _("Circuit $circuit[action] success!"));
-
 	// If this is a new circuit, save id of insert and process
 	if($circuit['id'] == "") {
 		if ($Admin->lastId==null) {
@@ -126,6 +125,11 @@ else {
 		$Result->show("success", _("Logical Circuit $circuit[action] successful").'!', false);
 	}
 	else {
-		$Result->show("warning", _("No Logical Circuits selected").'!', false);
+		if($circuit['action'] == "delete"){
+        		$Result->show("success", _("Logical Circuit $circuit[action] successful").'!', false);
+		}
+		else{
+        		$Result->show("warning", _("No circuits selected").'!', false);
+		}
 	}
 }

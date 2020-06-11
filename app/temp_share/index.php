@@ -3,7 +3,7 @@
 include('functions/checks/check_php_build.php');		# check for support for PHP modules and database connection
 
 # fetch settings
-$settings = $Tools->fetch_object("settings", "id", 1);
+$settings = $Tools->get_settings();
 ?>
 
 <!DOCTYPE HTML>
@@ -38,15 +38,15 @@ $settings = $Tools->fetch_object("settings", "id", 1);
 	<?php } ?>
 
 	<!-- js -->
-	<script type="text/javascript" src="js/jquery-3.3.1.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-	<script type="text/javascript" src="js/bootstrap.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
-	<script type="text/javascript">
+	<script src="js/jquery-3.4.1.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+	<script src="js/bootstrap.min.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+	<script>
 	$(document).ready(function(){
 	     if ($("[rel=tooltip]").length) { $("[rel=tooltip]").tooltip(); }
 	});
 	</script>
 	<!--[if lt IE 9]>
-	<script type="text/javascript" src="js/dieIE.js"></script>
+	<script src="js/dieIE.js"></script>
 	<![endif]-->
 </head>
 

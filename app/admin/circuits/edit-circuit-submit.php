@@ -21,10 +21,10 @@ $User->check_maintaneance_mode ();
 
 # perm check popup
 if($_POST['action']=="edit") {
-    $User->check_module_permissions ("circuits", 2, true, false);
+    $User->check_module_permissions ("circuits", User::ACCESS_RW, true, false);
 }
 else {
-    $User->check_module_permissions ("circuits", 3, true, false);
+    $User->check_module_permissions ("circuits", User::ACCESS_RWA, true, false);
 }
 
 # validate csrf cookie
@@ -147,17 +147,12 @@ if(isset($update)) {
 	$values = array_merge($values, $update);
 }
 # append customerId
-if($User->settings->enableCustomers=="1" && $User->get_module_permissions ("customers")>0) {
+if($User->settings->enableCustomers=="1" && $User->get_module_permissions ("customers")>=User::ACCESS_RW) {
 	if (is_numeric($_POST['customer_id'])) {
-		if ($_POST['customer_id']>0) {
-			$values['customer_id'] = $_POST['customer_id'];
-		}
-		else {
-			$values['customer_id'] = NULL;
-		}
+	       $values['customer_id'] = $_POST['customer_id'] > 0 ? $_POST['customer_id'] : NULL;
 	}
 }
 
 # update
 if(!$Admin->object_modify("circuits", $circuit['action'], "id", $values))	{}
-else																	{ $Result->show("success", _("Circuit $circuit[action] successfull").'!', false); }
+else																	{ $Result->show("success", _("Circuit $circuit[action] successful").'!', false); }

@@ -12,17 +12,6 @@
 
 class Logging extends Common_functions {
 
-
-	/**
-	 * debugging flag
-	 *
-	 * (default value: false)
-	 *
-	 * @var bool
-	 * @access public
-	 */
-	public $debugging = false;
-
 	/**
 	 * log_type
 	 *
@@ -183,7 +172,8 @@ class Logging extends Common_functions {
 						"subnetOrdering" => "Order of subnets",
 						"order"          => "Order of display",
 						"showVLAN"       => "Show VLANs in side menu",
-						"showVRF"        => "Show VRF in side menu"
+						"showVRF"        => "Show VRF in side menu",
+						"showSupernetOnly" => "Show only supernets"
     	),
     	"subnet" => array(
 						"id"                    => "Subnet id",
@@ -206,6 +196,7 @@ class Logging extends Common_functions {
 						"scanAgent"             => "Scan agent index",
 						"isFolder"              => "Object is folder",
 						"isFull"                => "Subnet is marked as full",
+						"isPool"                => "Subnet is marked as a pool",
 						"state"                 => "Subnet state index",
 						"NAT"                   => "NAT object index",
 						"threshold"             => "Usage alert threshold",
@@ -224,7 +215,7 @@ class Logging extends Common_functions {
 						"id"                    => "Address id",
 						"subnetId"              => "Subnet",
 						"ip_addr"               => "IP address",
-						"is_gayeway"            => "Gateway",
+						"is_gateway"            => "Address is subnet gateway",
 						"description"           => "Description",
 						"hostname"              => "Hostname",
 						"mac"                   => "MAC address",
@@ -239,28 +230,10 @@ class Logging extends Common_functions {
 						"PTR"                   => "PTR object index",
 						"NAT"                   => "NAT object index",
 						"firewallAddressObject" => "Firewall object index",
-						"is_gateway"            => "Address is subnet gateway",
 						"location"              => "Address location",
-						"location_item"			=> "Address location",
 						"section"				=> "Section"
                     )
 	);
-
-	/**
-	 * Database object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Database;
-
-	/**
-	 * Result object
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $Result;
 
 	/**
 	 * Addresses object
@@ -294,15 +267,6 @@ class Logging extends Common_functions {
 	 */
 	protected $Tools;
 
-	/**
-	 * settings
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $settings;
-
-
 
 
 
@@ -314,6 +278,8 @@ class Logging extends Common_functions {
 	 * @param mixed $settings (default: null)
 	 */
 	public function __construct (Database_PDO $database, $settings = null) {
+		parent::__construct();
+
 		# Save database object
 		$this->Database = $database;
 		# Result
@@ -328,8 +294,6 @@ class Logging extends Common_functions {
 		else {
 			$this->settings = (object) $settings;
 		}
-		# debugging
-		$this->set_debugging();
 		# set log type
 		$this->set_log_type ();
 	}
@@ -922,8 +886,6 @@ class Logging extends Common_functions {
 			//vrf
 			elseif($k == 'vrfId') 			{ $this->object_new[$k] = $this->changelog_format_vrf_diff ($k, $v); }
 			//location
-			elseif($k == 'location_item')   { $this->object_new[$k] = $this->changelog_format_location_diff ($k, $v); }
-			//location
 			elseif($k == 'location') 	    { $this->object_new[$k] = $this->changelog_format_location_diff ($k, $v); }
 			//master section change
 			elseif($k == 'masterSection') 	{ $this->object_new[$k] = $this->changelog_format_master_section_diff ($k, $v); }
@@ -961,8 +923,6 @@ class Logging extends Common_functions {
 			elseif($k == 'vlanId') 			{ $this->object_old[$k] = $this->changelog_format_vlan_diff ($k, $v); }
 			//vrf
 			elseif($k == 'vrfId') 			{ $this->object_old[$k] = $this->changelog_format_vrf_diff ($k, $v); }
-			//location
-			elseif($k == 'location_item') 	{ $this->object_old[$k] = $this->changelog_format_location_diff ($k, $v); }
 			//location
 			elseif($k == 'location') 	    { $this->object_old[$k] = $this->changelog_format_location_diff ($k, $v); }
 			//master section change
@@ -1022,8 +982,6 @@ class Logging extends Common_functions {
 				elseif($k == 'vlanId') 			{ $v = $this->changelog_format_vlan_diff ($k, $v); }
 				//vrf
 				elseif($k == 'vrfId') 			{ $v = $this->changelog_format_vrf_diff ($k, $v); }
-				//location
-				elseif($k == 'location_item') 	{ $v = $this->changelog_format_location_diff ($k, $v); }
 				//location
 				elseif($k == 'location') 	    { $v = $this->changelog_format_location_diff ($k, $v); }
 				//master section change
@@ -1114,6 +1072,7 @@ class Logging extends Common_functions {
 					$this->object_new['nameserverId'],
 					$this->object_new['scanAgent'],
 					$this->object_new['isFull'],
+					$this->object_new['isPool'],
 					$this->object_new['threshold'],
 					$this->object_new['lastScan'],
 					$this->object_new['lastDiscovery']
@@ -1133,6 +1092,7 @@ class Logging extends Common_functions {
 					$this->object_old['nameserverId'],
 					$this->object_old['scanAgent'],
 					$this->object_old['isFull'],
+					$this->object_old['isPool'],
 					$this->object_old['threshold'],
 					$this->object_old['lastScan'],
 					$this->object_old['lastDiscovery']
@@ -1455,8 +1415,8 @@ class Logging extends Common_functions {
     	// init
     	$keys = array();
 		// list of keys to be changed per object
-		$keys['section'] = array("strictMode", "showVLAN", "showVRF");
-		$keys['subnet']  = array("allowRequests", "showName", "pingSubnet", "discoverSubnet", "DNSrecursive", "DNSrecords", "isFull");
+		$keys['section'] = array("strictMode", "showVLAN", "showVRF", "showSupernetOnly");
+		$keys['subnet']  = array("allowRequests", "showName", "pingSubnet", "discoverSubnet", "resolveDNS", "DNSrecursive", "DNSrecords", "isFull", "isPool");
 		$keys['ip_addr'] = array("is_gateway", "excludePing", "PTRignore");
 
 		// check

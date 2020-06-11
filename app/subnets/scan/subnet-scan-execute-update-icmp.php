@@ -1,7 +1,7 @@
 <?php
 
-# Check we have been included via subnet-scan-excute.php and not called directly
-require("subnet-scan-check-included.php");
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../functions/include-only.php' );
 
 /*
  * Update alive status of all hosts in subnet
@@ -19,6 +19,10 @@ exec($cmd, $output, $retval);
 # format result back to object
 $output = array_values(array_filter($output));
 $script_result = json_decode($output[0]);
+
+# json error
+if(json_last_error() !== JSON_ERROR_NONE)
+	$Result->show("danger", "Invalid JSON response"." - ".$Scan->json_error_decode(json_last_error())." - ".escape_input($output[0]), true);
 
 # set blank values
 if (!isset($script_result->values->alive) || is_null($script_result->values->alive) )	{ $script_result->values->alive = array(); }
@@ -114,10 +118,8 @@ if($script_result->status==0) {
 <hr>
 
 <?php
-# json error
-if(json_last_error()!=0)						{ $Result->show("danger", "Invalid JSON response"." - ".$Result->json_error_decode(json_last_error()), false); }
 # die if error
-elseif($retval!=0) 								{ $Result->show("danger", "Error executing scan! Error code - $retval", false); }
+if($retval!=0) 								{ $Result->show("danger", "Error executing scan! Error code - $retval", false); }
 # error?
 elseif($script_result->status===1)				{ $Result->show("danger", $script_result->error, false); }
 # empty

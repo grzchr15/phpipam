@@ -10,16 +10,6 @@
 class phpipamSNMP extends Common_functions {
 
 	/**
-	 * Settings
-	 *
-	 * (default value: false)
-	 *
-	 * @var bool
-	 * @access public
-	 */
-	public $settings = false;
-
-	/**
 	 * Saves last result value
 	 *
 	 * (default value: false)
@@ -34,7 +24,7 @@ class phpipamSNMP extends Common_functions {
      *
      * (default value: false)
      *
-     * @var bool
+     * @var SNMP|bool
      * @access private
      */
     private $snmp_session = false;
@@ -159,13 +149,6 @@ class phpipamSNMP extends Common_functions {
 	 */
 	public $vlan_number = 1;
 
-	/**
-	 * Result object - for result printing
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $Result;
 
 
 
@@ -261,7 +244,8 @@ class phpipamSNMP extends Common_functions {
 
     		'CISCO-VTP-MIB::vtpVlanName'          => '.1.3.6.1.4.1.9.9.46.1.3.1.1.4',
 
-    		'MPLS-VPN-MIB::mplsVpnVrfDescription' => '.1.3.6.1.3.118.1.2.2.1'
+    		'MPLS-VPN-MIB::mplsVpnVrfDescription'        => '.1.3.6.1.3.118.1.2.2.1.2',
+    		'MPLS-VPN-MIB::mplsVpnVrfRouteDistinguisher' => '.1.3.6.1.3.118.1.2.2.1.3'
     	];
 	}
 
@@ -518,7 +502,7 @@ class phpipamSNMP extends Common_functions {
         $this->snmp_session->oid_output_format = SNMP_OID_OUTPUT_NUMERIC;
 
 		// Fetch device sysObjectID.  TODO: Customise queries based on vendor sysObjectID (HP, FortiGate, ...)
-		$this->snmp_sysObjectID = $this->snmp_get( 'SNMPv2-MIB::sysObjectID', '0' );
+		// $this->snmp_sysObjectID = $this->snmp_get( 'SNMPv2-MIB::sysObjectID', '0' );
     }
 
     /**
@@ -603,7 +587,7 @@ class phpipamSNMP extends Common_functions {
         // parse MAC
         $n=0;
         foreach ($res2 as $r) {
-            $res[$n]['mac'] = $this->fill_mac_nulls ($r);
+            $res[$n]['mac'] = $this->format_snmp_mac_value ($r);
             // validate mac
             if ($this->validate_mac($res[$n]['mac'])===false) { $res[$n]['mac'] = ""; }
             $n++;
@@ -666,7 +650,7 @@ class phpipamSNMP extends Common_functions {
         // parse MAC
         $n=0;
         foreach ($res1 as $r) {
-            $res[$n]['mac'] = $this->fill_mac_nulls ($r);
+            $res[$n]['mac'] = $this->format_snmp_mac_value ($r);
             // validate mac
             if ($this->validate_mac($res[$n]['mac'])===false) { $res[$n]['mac'] = ""; }
             $n++;
@@ -726,7 +710,7 @@ class phpipamSNMP extends Common_functions {
         }
         $n=0;
         foreach ($res2 as $r) {
-            $res[$n]['mac'] = $this->fill_mac_nulls ($r);
+            $res[$n]['mac'] = $this->format_snmp_mac_value ($r);
             // validate mac
             if ($this->validate_mac($res[$n]['mac'])===false) { $res[$n]['mac'] = ""; }
             $n++;
@@ -803,6 +787,29 @@ class phpipamSNMP extends Common_functions {
     }
 
     /**
+     * Decode mplsVpnVrfName oid to ASCII
+     * @param  string $oid
+     * @return string
+     */
+    private function decode_mplsVpnVrfName($oid) {
+        // mplsVpnVrfName. When this object is used as an index to a table,
+        // the first octet is the string length, and subsequent octets are
+        // the ASCII codes of each character.
+        // For example, “vpn1” is represented as 4.118.112.110.49.
+        $a = array_values(array_filter(explode('.', $oid)));
+        if (($a[0]+1) != sizeof($a))
+            return $oid;
+
+        $mplsVpnVrfName = "";
+
+        foreach($a as $i=>$v) {
+            if ($i == 0) continue;
+            $mplsVpnVrfName .= chr($v);
+        }
+        return $mplsVpnVrfName;
+    }
+
+    /**
      * Fetch vrf table from device.
      *
      * @access private
@@ -813,16 +820,28 @@ class phpipamSNMP extends Common_functions {
         $this->connection_open ();
 
         // fetch
-        $res1 = $this->snmp_walk ( "MPLS-VPN-MIB::mplsVpnVrfDescription" );    // MPLS-VPN-MIB::mplsVpnVrfDescription."OAM" = STRING: 300:1
+        $res = [];
+        $res1 = $this->snmp_walk ( "MPLS-VPN-MIB::mplsVpnVrfRouteDistinguisher" );
+        $res2 = $this->snmp_walk ( "MPLS-VPN-MIB::mplsVpnVrfDescription" );
 
-        // parse result
+        // parse results
         foreach ($res1 as $k=>$r) {
+            // set name
+            $k = str_replace($this->snmp_oids['MPLS-VPN-MIB::mplsVpnVrfRouteDistinguisher'].'.', "", $k);
+            $k = str_replace("\"", "", $k);
+            $k = $this->decode_mplsVpnVrfName($k);
+            // set rd
+            $r  = $this->parse_snmp_result_value ($r);
+            $res[$k]['rd'] = $r;
+        }
+        foreach ($res2 as $k=>$r) {
             // set name
             $k = str_replace($this->snmp_oids['MPLS-VPN-MIB::mplsVpnVrfDescription'].'.', "", $k);
             $k = str_replace("\"", "", $k);
-            // set rd
+            $k = $this->decode_mplsVpnVrfName($k);
+            // set descr
             $r  = $this->parse_snmp_result_value ($r);
-            $res[$k] = $r;
+            $res[$k]['descr'] = $r;
         }
 
         // save result
@@ -832,34 +851,55 @@ class phpipamSNMP extends Common_functions {
         return isset($res) ? $res : false;
     }
 
-	/**
-	 * Fills mac with nulls -> 0:0:fe >> 00:00:fe
-	 *
-	 * @access private
-	 * @param mixed $mac
-	 * @return void
-	 */
-	private function fill_mac_nulls ($mac) {
-        //make sure MAC has all 0
-        $mac = explode(":", trim(substr($mac, strpos($mac, ":")+2)));
-        foreach ($mac as $km=>$mc) {
-            if (strlen($mc)==1) {
-                $mac[$km] = str_pad($mc, 2, "0", STR_PAD_LEFT);
-            }
-        }
-        // return
-        return implode(":", $mac);
-	}
+    /**
+     * Standardise SNMP MACs  -> 0:1:fe   >> 00:01:fe
+     *                        -> 0-1-fe   >> 00:01:fe
+     *                        -> 00 01 fe >> 00:01:fe
+     * @access private
+     * @param string $mac
+     * @return string
+     */
+    private function format_snmp_mac_value ($mac) {
+        if (!is_string($mac))
+            return '';
 
-	/**
-	 * Parses result - removes STRING:
-	 *
-	 * @access private
-	 * @param mixed $r
-	 * @return void
-	 */
-	private function parse_snmp_result_value ($r) {
-    	return trim(str_replace("\"","",substr($r, strpos($r, ":")+2)));
-	}
+        $mac = trim($mac);
+
+        $separators = [':', '-', ' '];
+
+        $mac_parts = [];
+        foreach ($separators as $separator) {
+            if (strpos($mac, $separator)===false)
+                continue;
+            $mac_parts = explode($separator, $mac);
+            break;
+        }
+
+        if (sizeof($mac_parts)!=6)
+            return $mac;
+
+        foreach ($mac_parts as $i=>$v) {
+            $mac_parts[$i] = str_pad($v, 2, "0", STR_PAD_LEFT);
+        }
+
+        return implode(":", $mac_parts);
+    }
+
+    /**
+     * Parses result - removes STRING:
+     *
+     * @access private
+     * @param mixed $r
+     * @return void
+     */
+    private function parse_snmp_result_value ($r) {
+        $r = stripslashes($r);
+        $r = trim(substr($r, strpos($r, ":")+2));
+        // if the first char is a " then remove it
+        if(substr_compare($r, '"', 0, 1)===0)  $r=substr($r, 1);
+        // if the last char is a " then remove it
+        if(substr_compare($r, '"', -1, 1)===0) $r=substr($r, 0,-1);
+        return escape_input($r);
+    }
 
 }

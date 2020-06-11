@@ -1,4 +1,6 @@
 <?php
+$db = Config::ValueOf('db');
+
 // add prefix - install or migrate
 $title_prefix = @$_GET['subnetId']=="migrate" ? "migration" : "installation";
 $filename	  = @$_GET['subnetId']=="migrate" ? "MIGRATE" : "SCHEMA";

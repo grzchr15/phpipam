@@ -1,5 +1,8 @@
 <?php
 
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../../functions/include-only.php' );
+
 /**
  * Script to display providers
  */
@@ -7,7 +10,7 @@
 # verify that user is logged in
 $User->check_user_session();
 # perm check
-$User->check_module_permissions ("circuits", 1, true, false);
+$User->check_module_permissions ("circuits", User::ACCESS_R, true, false);
 
 # check
 is_numeric($_GET['sPage']) ? : $Result->show("danger", _("Invalid ID"), true);
@@ -66,7 +69,7 @@ if($provider!==false) {
     			}
 
     			# create links
-    			$provider->{$field['name']} = $Result->create_links ($provider->{$field['name']});
+    			$provider->{$field['name']} = $Tools->create_links ($provider->{$field['name']});
 
     			print "<tr>";
     			print "<th>".$Tools->print_custom_field_name ($field['name'])."</th>";
@@ -76,7 +79,7 @@ if($provider!==false) {
     	}
 
     	// edit, delete
-    	if($User->get_module_permissions ("circuits")>1) {
+    	if($User->get_module_permissions ("circuits")>=User::ACCESS_RW) {
     		print "<tr>";
     		print "	<td colspan='2'><hr></td>";
     		print "</tr>";
@@ -88,7 +91,7 @@ if($provider!==false) {
 	        $links = [];
             $links[] = ["type"=>"header", "text"=>"Manage provider"];
             $links[] = ["type"=>"link", "text"=>"Edit provider", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-provider.php' data-class='700' data-action='edit' data-providerid='$provider->id'", "icon"=>"pencil"];
-	        if($User->get_module_permissions ("circuits")>2) {
+	        if($User->get_module_permissions ("circuits")>=User::ACCESS_RWA) {
 	            $links[] = ["type"=>"link", "text"=>"Delete provider", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-provider.php' data-class='700' data-action='delete' data-providerid='$provider->id'", "icon"=>"times"];
 	        }
 	        // print links
@@ -180,16 +183,16 @@ if($provider!==false) {
 			// actions
 	        print "<td class='actions'>";
 	        $links = [];
-	        if($User->get_module_permissions ("circuits")>0) {
+	        if($User->get_module_permissions ("circuits")>=User::ACCESS_R) {
 	            $links[] = ["type"=>"header", "text"=>"Show circuit"];
 	            $links[] = ["type"=>"link", "text"=>"View", "href"=>create_link($_GET['page'], "circuits", $circuit->id), "icon"=>"eye", "visible"=>"dropdown"];
 	            $links[] = ["type"=>"divider"];
 	        }
-	        if($User->get_module_permissions ("circuits")>1) {
+	        if($User->get_module_permissions ("circuits")>=User::ACCESS_RW) {
 	            $links[] = ["type"=>"header", "text"=>"Manage circuit"];
 	            $links[] = ["type"=>"link", "text"=>"Edit circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='edit' data-circuitid='$circuit->id'", "icon"=>"pencil"];
 	        }
-	        if($User->get_module_permissions ("circuits")>2) {
+	        if($User->get_module_permissions ("circuits")>=User::ACCESS_RWA) {
 	            $links[] = ["type"=>"link", "text"=>"Delete circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='delete' data-circuitid='$circuit->id'", "icon"=>"times"];
 	        }
 	        // print links

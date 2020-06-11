@@ -110,9 +110,9 @@ $readonly = $_POST['action']=="edit" || $_POST['action']=="delete" ? true : fals
 ?>
 
 <?php if ($User->settings->enableThreshold=="1") { ?>
-<script type="text/javascript" src="js/bootstrap-slider.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
+<script src="js/bootstrap-slider.js?v=<?php print SCRIPT_PREFIX; ?>"></script>
 <?php } ?>
-<script type="text/javascript">
+<script>
 $(document).ready(function() {
 /* bootstrap switch */
 var switch_options = {
@@ -146,12 +146,12 @@ $('.slider').slider().on('slide', function(ev){
 // mastersubnet Ajax
 $("input[name='subnet']").change(function() {
 	var $masterdopdown = $("select[name='masterSubnetId']");
-	$masterdopdown.load('<?php print BASE.'app/subnets/mastersubnet-dropdown.php?section='.urlencode($_POST['sectionId']).'&cidr='; ?>' + $(this).val() + '&prev=' + $masterdopdown.val());
+	$masterdopdown.load('<?php print 'app/subnets/mastersubnet-dropdown.php?section='.urlencode($_POST['sectionId']).'&cidr='; ?>' + $(this).val() + '&prev=' + $masterdopdown.val());
 });
 
 <?php if($_POST['location']=="ipcalc" && !isset($_POST['freespaceMSID'])) { ?>
     var $masterdopdown = $("select[name='masterSubnetId']");
-    $masterdopdown.load('<?php print BASE.'app/subnets/mastersubnet-dropdown.php?section='.urlencode($_POST['sectionId']).'&cidr='; ?>' + $(this).val() + '&prev=0');
+    $masterdopdown.load('<?php print 'app/subnets/mastersubnet-dropdown.php?section='.urlencode($_POST['sectionId']).'&cidr='; ?>' + $(this).val() + '&prev=0');
 <?php } ?>
 
 });
@@ -248,7 +248,7 @@ $("input[name='subnet']").change(function() {
     </tr>
     <?php } ?>
 
-    <?php if($User->get_module_permissions ("vlan")>0) { ?>
+    <?php if($User->get_module_permissions ("vlan")>=User::ACCESS_R) { ?>
     <!-- vlan -->
     <tr>
         <td class="middle"><?php print _('VLAN'); ?></td>
@@ -260,7 +260,7 @@ $("input[name='subnet']").change(function() {
     <?php } ?>
 
 
-    <?php if($User->get_module_permissions ("devices")>0) { ?>
+    <?php if($User->get_module_permissions ("devices")>=User::ACCESS_R) { ?>
 	<!-- Device -->
 	<tr>
 		<td class="middle"><?php print _('Device'); ?></td>
@@ -319,7 +319,7 @@ $("input[name='subnet']").change(function() {
 	if(empty($subnet_old_details['allowRequests'])) 	{ $subnet_old_details['allowRequests'] = "0"; }
 
 	/* if vlan support is enabled print available vlans */
-	if($User->settings->enableVRF==1 && $User->get_module_permissions ("vrf")>0) {
+	if($User->settings->enableVRF==1 && $User->get_module_permissions ("vrf")>=User::ACCESS_R) {
 		print '<tr>' . "\n";
         print '	<td class="middle">'._('VRF').'</td>' . "\n";
         print '	<td>' . "\n";
@@ -357,7 +357,7 @@ $("input[name='subnet']").change(function() {
 	}
 
     // customers
-    if($User->settings->enableCustomers==1 && $User->get_module_permissions ("customers")>0) {
+    if($User->settings->enableCustomers==1 && $User->get_module_permissions ("customers")>=User::ACCESS_R) {
         // fetch customers
         $customers = $Tools->fetch_all_objects ("customers", "title");
         // print
@@ -385,11 +385,11 @@ $("input[name='subnet']").change(function() {
 	?>
 
 	<!-- Location -->
-	<?php if($User->settings->enableLocations=="1" && $User->get_module_permissions ("locations")>0) { ?>
+	<?php if($User->settings->enableLocations=="1" && $User->get_module_permissions ("locations")>=User::ACCESS_R) { ?>
 	<tr>
 		<td><?php print _('Location'); ?></td>
 		<td>
-			<select name="location_item" class="form-control input-sm input-w-auto">
+			<select name="location" class="form-control input-sm input-w-auto">
     			<option value="0"><?php print _("None"); ?></option>
     			<?php
                 if($locations!==false) {
@@ -410,12 +410,20 @@ $("input[name='subnet']").change(function() {
 	    <td colspan="3"><hr></td>
     </tr>
 	<tr>
+        <td class="middle"><?php print _('Mark as Pool'); ?></td>
+        <td>
+            <?php $checked = @$subnet_old_details['isPool']==1 ? "checked": ""; ?>
+            <input type="checkbox" name="isPool" class="input-switch" value="1" <?php print $checked; ?>>
+        </td>
+        <td class="info2"><?php print _('Mark subnet as an address pool'); ?></td>
+    </tr>
+	<tr>
         <td class="middle"><?php print _('Mark as full'); ?></td>
         <td>
             <?php $checked = @$subnet_old_details['isFull']==1 ? "checked": ""; ?>
             <input type="checkbox" name="isFull" class="input-switch" value="1" <?php print $checked; ?>>
         </td>
-        <td class="info2"><?php print _('Mark subnet as utilized'); ?></td>
+        <td class="info2"><?php print _('Mark subnet as full'); ?></td>
     </tr>
     <?php if ($User->settings->enableThreshold=="1") { ?>
 	<tr>
@@ -544,7 +552,6 @@ $("input[name='subnet']").change(function() {
             <input type="hidden" name="sectionId"       value="<?php print $_POST['sectionId']; ?>">
             <input type="hidden" name="subnetId"        value="<?php print $_POST['subnetId'];  ?>">
             <input type="hidden" name="action"    		value="<?php print $_POST['action'];    ?>">
-            <input type="hidden" name="location"    	value="<?php print @$_POST['location']; ?>">
             <?php if(isset($_POST['freespaceMSID'])) { ?>
             <input type="hidden" name="freespace"    	value="true">
             <?php } ?>

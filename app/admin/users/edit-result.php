@@ -58,7 +58,7 @@ if((strlen(@$_POST['password1'])>0 || (@$_POST['action']=="add") && $auth_method
 # general checks
 if(strlen(@$_POST['real_name'])==0)										{ $Result->show("danger", _("Real name field is mandatory!"), true); }
 # email format must be valid
-if (!$Result->validate_email(@$_POST['email'])) 						{ $Result->show("danger", _("Invalid email address!"), true); }
+if (!$Tools->validate_email(@$_POST['email'])) 						{ $Result->show("danger", _("Invalid email address!"), true); }
 
 # username must not already exist (if action is add)
 if ($_POST['action']=="add") {
@@ -74,8 +74,9 @@ if ($_POST['action']=="add") {
 	}
 }
 # admin user cannot be deleted
-if($_POST['action']=="delete" && $_POST['username']=="admin") 			{ $Result->show("danger", _("Admin user cannot be deleted"), true); }
-
+if($_POST['action']=="delete" && $_POST['userId']==1) 			{ $Result->show("danger", _("Admin user cannot be deleted"), true); }
+# admin user cannot be disabled
+if($_POST['disabled']=="Yes" && $_POST['userId']==1) 			{ $Result->show("danger", _("Admin user cannot be disabled"), true); }
 
 # custom fields check
 $myFields = $Tools->fetch_custom_fields('users');
@@ -112,6 +113,7 @@ $values = array(
 				"mailNotify"     =>$_POST['mailNotify'],
 				"mailChangelog"  =>$_POST['mailChangelog'],
 				"theme"          =>$_POST['theme']=="default" ? "" : $_POST['theme'],
+				"disabled"       =>$_POST['disabled']=="Yes" ? "Yes" : "No"
 				);
 
 
@@ -160,7 +162,7 @@ $values['module_permissions'] = json_encode($permissions);
 
 # execute
 if(!$Admin->object_modify("users", $_POST['action'], "id", $values))	{ $Result->show("danger",  _("User $_POST[action] failed").'!', true); }
-else																	{ $Result->show("success", _("User $_POST[action] successfull").'!', false); }
+else																	{ $Result->show("success", _("User $_POST[action] successful").'!', false); }
 
 # mail user
 if($Admin->verify_checkbox(@$_POST['notifyUser'])!="0") { include("edit-notify.php"); }

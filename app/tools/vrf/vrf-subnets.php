@@ -7,7 +7,7 @@
 # verify that user is logged in
 $User->check_user_session();
 # perm check
-$User->check_module_permissions ("vrf", 1, true, false);
+$User->check_module_permissions ("vrf", User::ACCESS_R, true, false);
 
 # fetch all subnets in vrf in this section
 $slaves = $Subnets->fetch_vrf_subnets ($_GET['subnetId'], NULL);
@@ -15,14 +15,14 @@ $slaves = $Subnets->fetch_vrf_subnets ($_GET['subnetId'], NULL);
 # no subnets
 if(!$slaves) {
 	print "<hr>";
-	print "<h4>"._('VRF')." $vrf->number (".$vrf->description.") "._('has no belonging subnets')."</h4>";
+	print "<h4>"._('VRF')." $vrf->name (".$vrf->description.") "._('has no belonging subnets')."</h4>";
 }
 else {
 	# cast
 	$vrf = (array) $vrf;
 	# print title
 	$slaveNum = sizeof($slaves);
-	print "<h4>"._('VRF')." $vrf[number] (".$vrf['name'].") "._('has')." $slaveNum "._('belonging subnets').":</h4><hr><br>";
+	print "<h4>"._('VRF')." $vrf[name] (".$vrf['description'].") "._('has')." $slaveNum "._('belonging subnets').":</h4><hr><br>";
 
 	# table
 	print '<table class="table slaves sorted table-striped table-condensed table-hover table-full table-top" data-cookie-id-table="vrf_subnets_slaves">'. "\n";
@@ -30,7 +30,7 @@ else {
 	# headers
 	print "<thead>";
 	print "<tr>";
-	if($User->get_module_permissions ("vlan")>0)
+	if($User->get_module_permissions ("vlan")>=User::ACCESS_R)
 	print "	<th class='small'>"._('VLAN')."</th>";
 	print "	<th class='small description'>"._('Subnet description')."</th>";
 	print "	<th class='description'>"._('Subnet')."</th>";
@@ -58,10 +58,10 @@ else {
             $vlan = $Tools->fetch_object ("vlans", "vlanId", $subnet['vlanId']);
 
 			print "<tr>";
-			if($User->get_module_permissions ("vlan")>0)
+			if($User->get_module_permissions ("vlan")>=User::ACCESS_R)
 		    print "	<td><a href='".create_link("tools","vlan", $vlan->domainId, $vlan->vlanId)."'><span class='badge badge1'>$vlan->number</span></a></td>";
-		    print "	<td class='small description'><a href='".create_link("subnets",$_GET['section'],$subnet['id'])."'>$subnet[description]</a></td>";
-		    print "	<td><a href='".create_link("subnets",$_GET['section'],$subnet['id'])."'>".$Subnets->transform_address($subnet['subnet'], "dotted")."/$subnet[mask] $fullinfo</a></td>";
+		    print "	<td class='small description'><a href='".create_link("subnets",$subnet['sectionId'],$subnet['id'])."'>$subnet[description]</a></td>";
+		    print "	<td><a href='".create_link("subnets",$subnet['sectionId'],$subnet['id'])."'>".$Subnets->transform_address($subnet['subnet'], "dotted")."/$subnet[mask] $fullinfo</a></td>";
 
 			# increase IP count
 			$ipCount = 0;

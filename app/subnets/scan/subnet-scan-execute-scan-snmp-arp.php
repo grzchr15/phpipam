@@ -1,7 +1,7 @@
 <?php
 
-# Check we have been included via subnet-scan-excute.php and not called directly
-require("subnet-scan-check-included.php");
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../functions/include-only.php' );
 
 /*
  * Discover new hosts with snmp
@@ -64,7 +64,7 @@ foreach ($permitted_devices as $d) {
     try {
         $res = $Snmp->get_query("get_arp_table");
         // remove those not in subnet
-        if (sizeof($res)>0) {
+        if (is_array($res) && sizeof($res)>0) {
            // save for debug
            $debug[$d->hostname]["get_arp_table"] = $res;
            // check
@@ -82,7 +82,7 @@ foreach ($permitted_devices as $d) {
         // get interfaces
         $res = $Snmp->get_query("get_interfaces_ip");
         // remove those not in subnet
-        if (sizeof($res)>0) {
+        if (is_array($res) && sizeof($res)>0) {
            // save for debug
            $debug[$d->hostname]["get_interfaces_ip"] = $res;
            // check
@@ -213,9 +213,9 @@ else {
         			elseif($field['type'] == "date" || $field['type'] == "datetime") {
         				// just for first
         				if($timeP==0) {
-        					print '<link rel="stylesheet" type="text/css" href="css/bootstrap/bootstrap-datetimepicker.min.css">';
-        					print '<script type="text/javascript" src="js/bootstrap-datetimepicker.min.js"></script>';
-        					print '<script type="text/javascript">';
+        					print '<link rel="stylesheet" type="text/css" href="css/bootstrap/bootstrap-datetimepicker.min.css?v='.SCRIPT_PREFIX.'">';
+        					print '<script src="js/bootstrap-datetimepicker.min.js?v='.SCRIPT_PREFIX.'"></script>';
+        					print '<script>';
         					print '$(document).ready(function() {';
         					//date only
         					print '	$(".datepicker").datetimepicker( {pickDate: true, pickTime: false, pickSeconds: false });';

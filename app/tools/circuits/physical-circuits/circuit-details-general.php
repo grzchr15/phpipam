@@ -1,7 +1,10 @@
 <?php
 
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../../functions/include-only.php' );
+
 # perm check
-$User->check_module_permissions ("circuits", 1, true, false);
+$User->check_module_permissions ("circuits", User::ACCESS_R, true, false);
 
 print "<h4>"._('Circuit details')."</h4>";
 print "<hr>";
@@ -42,6 +45,11 @@ print "	<th>". _('Capacity').'</th>';
 print "	<td>$circuit->capacity</td>";
 print "</tr>";
 
+print '<tr>';
+print "	<th>". _('Comment').'</th>';
+print "	<td>$circuit->comment</td>";
+print "</tr>";
+
 if ($User->settings->enableCustomers=="1") {
 	$customer = $Tools->fetch_object ("customers", "id", $circuit->customer_id);
 	if($customer===false) {
@@ -69,7 +77,7 @@ if(sizeof($custom_fields) > 0) {
 		}
 
 		# create links
-		$circuit->{$field['name']} = $Result->create_links ($circuit->{$field['name']});
+		$circuit->{$field['name']} = $Tools->create_links ($circuit->{$field['name']});
 
 		print "<tr>";
 		print "<th>".$Tools->print_custom_field_name ($field['name'])."</th>";
@@ -79,7 +87,7 @@ if(sizeof($custom_fields) > 0) {
 }
 
 // edit, delete
-if($User->get_module_permissions ("circuits")>1) {
+if($User->get_module_permissions ("circuits")>=User::ACCESS_RW) {
 	print "<tr>";
 	print "	<td colspan='2'><hr></td>";
 	print "</tr>";
@@ -91,7 +99,7 @@ if($User->get_module_permissions ("circuits")>1) {
         $links = [];
         $links[] = ["type"=>"header", "text"=>"Manage circuit"];
         $links[] = ["type"=>"link", "text"=>"Edit circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='edit' data-circuitid='$circuit->id'", "icon"=>"pencil"];
-        if($User->get_module_permissions ("circuits")>2) {
+        if($User->get_module_permissions ("circuits")>=User::ACCESS_RWA) {
             $links[] = ["type"=>"link", "text"=>"Delete circuit", "href"=>"", "class"=>"open_popup", "dataparams"=>"  data-script='app/admin/circuits/edit-circuit.php' data-class='700' data-action='delete' data-circuitid='$circuit->id'", "icon"=>"times"];
         }
         // print links

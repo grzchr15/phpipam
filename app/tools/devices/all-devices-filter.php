@@ -23,12 +23,11 @@ if (isset($_GET['subnetId']) && isset($_GET['sPage'])) {
 		$section = $Database->getObjectQuery("select id,name from `sections` where `name` = ?", [$_GET['sPage']]);
 		// check in which section device can be
 		foreach ($devices as $k=>$d) {
-    		$section_ids = explode(";", $d->sections);
-    		foreach($section_ids as $k=>$id) {
-    			if (!in_array($section->id, $section_ids)) {
-					unset($devices[$k]);
-    			}
-    		}
+			$device_section_ids = explode(";", $d->sections);
+
+			if (!in_array($section->id, $device_section_ids)) {
+				unset($devices[$k]);
+			}
     	}
 	}
 	// rack
@@ -78,7 +77,7 @@ print "<div class='btn-group' style='margin-bottom:7px;'>";
 	print "</div>";
 
 	// filters - rack
-	if($User->get_module_permissions ("racks")>0 && $User->settings->enableRACK=="1") {
+	if($User->get_module_permissions ("racks")>=User::ACCESS_R && $User->settings->enableRACK=="1") {
 	    # init racks object
 		$Racks = new phpipam_rack ($Database);
 		$Racks->fetch_all_racks(true);
@@ -97,7 +96,7 @@ print "<div class='btn-group' style='margin-bottom:7px;'>";
 	}
 
 	// filters - location
-	if($User->get_module_permissions ("locations")>0 && $User->settings->enableLocations=="1") {
+	if($User->get_module_permissions ("locations")>=User::ACCESS_R && $User->settings->enableLocations=="1") {
 		# fetch locations
 		$all_locations = $Tools->fetch_all_objects("locations", "name");
 

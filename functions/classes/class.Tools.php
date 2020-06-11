@@ -7,16 +7,6 @@
 class Tools extends Common_functions {
 
 	/**
-	 * settings
-	 *
-	 * (default value: null)
-	 *
-	 * @var object
-	 * @access public
-	 */
-	public $settings = null;
-
-	/**
 	 * (array) IP address types from Addresses object
 	 *
 	 * (default value: null)
@@ -34,22 +24,6 @@ class Tools extends Common_functions {
 	public $csv_delimiter = ",";
 
 	/**
-	 * PEAR NET IPv4 object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Net_IPv4;
-
-	/**
-	 * PEAR NET IPv6 object
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Net_IPv6;
-
-	/**
 	 * Addresses object
 	 *
 	 * (default value: false)
@@ -60,32 +34,16 @@ class Tools extends Common_functions {
 	protected $Addresses = false;
 
 	/**
-	 * for Result printing
-	 *
-	 * @var object
-	 * @access public
+	 * Available phpIPAM releases
+	 * @var array
 	 */
-	public $Result;
+	public $phpipam_releases = [];
 
 	/**
-	 * debugging flag
-	 *
-	 * (default value: false)
-	 *
-	 * @var bool
-	 * @access protected
+	 * Latest phpIPAM release
+	 * @var mixed
 	 */
-	protected $debugging = false;
-
-	/**
-	 * Database connection
-	 *
-	 * @var object
-	 * @access protected
-	 */
-	protected $Database;
-
-
+	private $phpipam_latest_release;
 
 
 
@@ -95,12 +53,12 @@ class Tools extends Common_functions {
 	 * @access public
 	 */
 	public function __construct (Database_PDO $database) {
+		parent::__construct();
+
 		# set database object
 		$this->Database = $database;
 		# initialize Result
 		$this->Result = new Result ();
-		# set debugging
-		$this->set_debugging ();
 	}
 
 
@@ -151,27 +109,6 @@ class Tools extends Common_functions {
 		}
 		# result
 		return is_array($out) ? array_values($out) : false;
-	}
-
-	/**
-	 * Validates VLAN
-	 *
-	 *	not 1
-	 *	integer
-	 *	not higher that maxVLAN from settings
-	 *
-	 * @access public
-	 * @param int $number
-	 * @return mixed|bool
-	 */
-	public function validate_vlan ($number) {
-		# fetch highest vlan id
-		$settings = $this->get_settings();
-
-		if(empty($number)) 							{ return true; }
-		elseif(!is_numeric($number)) 				{ return _('VLAN must be numeric value!'); }
-		elseif ($number > $settings['vlanMax']) 	{ return _('Vlan number can be max '.$settings['vlanMax']); }
-		else 										{ return true; }
 	}
 
 
@@ -281,11 +218,11 @@ class Tools extends Common_functions {
 	 */
 	private function search_subnets_range ($search_term, $high, $low, $custom_fields = array()) {
 		# reformat low/high
-		if($high==0 && $low==0)	{ $high = "1"; $low="1"; }
+		if($high==0 && $low==0)	{ $high = "1"; $low = "1"; }
 
 		# set search query
 		$query[] = "select * from `subnets` where `description` like :search_term ";
-		$query[] = "or `subnet` between :low and :high ";
+		$query[] = "or (`subnet` >= :low and `subnet` <= :high )";
 		# custom
 	    if(sizeof($custom_fields) > 0) {
 			foreach($custom_fields as $myField) {
@@ -337,7 +274,7 @@ class Tools extends Common_functions {
 					# parse address
 					$net = $this->Net_IPv4->parseAddress($this->transform_address($s['subnet']).'/'.$s['mask'], "dotted");
 
-					if($low>$this->transform_to_decimal(@$net->network) && $low<$this->transform_address($net->broadcast, "decimal")) {
+					if($low>=$this->transform_to_decimal(@$net->network) && $low<=$this->transform_address($net->broadcast, "decimal")) {
 						$ids[] = $s['id'];
 					}
 				}
@@ -780,6 +717,8 @@ class Tools extends Common_functions {
 	 * @return array
 	 */
 	public function fetch_custom_fields ($table) {
+		$table = $this->Database->escape($table);
+
     	# fetch columns
 		$fields = $this->fetch_columns ($table);
 
@@ -1058,7 +997,7 @@ class Tools extends Common_functions {
 	 * @return array|null
 	 */
 	public function requests_fetch_available_subnets () {
-		try { $subnets = $this->Database->getObjectsQuery("SELECT * FROM `subnets` where `allowRequests`=1 and `isFull` != 1 ORDER BY `subnet`;"); }
+		try { $subnets = $this->Database->getObjectsQuery("SELECT * FROM `subnets` where `allowRequests`=1 and `isFull`!=1 ORDER BY `subnet`;"); }
 		catch (Exception $e) { $this->Result->show("danger", $e->getMessage(), false);	return false; }
 
 		# save
@@ -1480,6 +1419,9 @@ class Tools extends Common_functions {
 	 * @return bool
 	 */
 	public function fix_field ($table, $field) {
+		$table = $this->Database->escape($table);
+		$field = $this->Database->escape($field);
+
 		# set fix query
 		$query  = "alter table `$table` add ";
 		$query .= trim($this->get_field_fix ($table, $field), ",");
@@ -1553,6 +1495,19 @@ class Tools extends Common_functions {
 	}
 
 	/**
+	 * Get list of table indexes
+	 *
+	 * @param  string $table
+	 * @return mixed
+	 */
+	private function get_table_indexes($table) {
+		try { return $indexes = $this->Database->getObjectsQuery("SHOW INDEX from `$table` where `Key_name` != 'PRIMARY';"); }
+		catch (Exception $e) {
+			$this->Result->show("danger", _("Invalid query for `$table` database index check : ").$e->getMessage(), true);
+		}
+	}
+
+	/**
 	 * Using required database indexes remove all that are existing and return array of missing indexes
 	 *
 	 * @method get_missing_database_indexes
@@ -1562,10 +1517,7 @@ class Tools extends Common_functions {
 	private function get_missing_database_indexes ($schema_indexes) {
 		// loop
 		foreach ($schema_indexes as $table=>$index) {
-			try { $indexes = $this->Database->getObjectsQuery("SHOW INDEX from `$table` where `Key_name` != 'PRIMARY';"); }
-			catch (Exception $e) {
-				$this->Result->show("danger", _("Invalid query for `$table` database index check : ").$e->getMessage(), true);
-			}
+			$indexes = $this->get_table_indexes($table);
 			// remove existing
 			if ($indexes!==false) {
 				foreach ($indexes as $i) {
@@ -1593,6 +1545,9 @@ class Tools extends Common_functions {
 	 * @return void
 	 */
 	private function fix_missing_index ($table, $index_name) {
+		$table = $this->Database->escape($table);
+		$index_name = $this->Database->escape($index_name);
+
 		// get definition
 		$file = $this->read_db_schema();
 
@@ -1626,6 +1581,73 @@ class Tools extends Common_functions {
 		}
 	}
 
+	/**
+	 * Manage indexes for linked addresses
+	 *
+	 * @param  string $linked_field
+	 * @return void
+	 */
+	public function verify_linked_field_indexes ($linked_field) {
+		$valid_fields = $this->fetch_custom_fields ('ipaddresses');
+		$valid_fields = array_merge(['ip_addr','hostname','mac','owner'], array_keys($valid_fields));
+
+		// get indexes from schema and table
+		$schema_indexes = $this->get_schema_indexes();
+		$table_indexes  = $this->get_table_indexes('ipaddresses');
+
+		if (!is_array($schema_indexes) || !is_array($table_indexes))
+			return;
+
+		$linked_field_index_found = false;
+
+		foreach ($table_indexes as $i) {
+			// check for valid linked_field candidates
+			if (!in_array($i->Key_name, $valid_fields))
+				continue;
+			// skip permanent indexes defined in schema
+			if (in_array($i->Key_name, $schema_indexes['ipaddresses']))
+				continue;
+			// skip selected linked_field
+			if ($i->Key_name == $linked_field) {
+				$linked_field_index_found = true;
+				continue;
+			}
+
+			// Remove un-necessary linked_field indexes.
+			try { $this->Database->runQuery("ALTER TABLE `ipaddresses` DROP INDEX $i->Key_name;"); }
+			catch (Exception $e) {
+				$this->Result->show("danger", $e->getMessage(), true);
+			}
+			$this->Result->show("info", _("Removing link addresses index : ").$i->Key_name);
+		}
+
+		if ($linked_field_index_found || !in_array($linked_field, $valid_fields))
+			return;
+
+		$schema = $this->getTableSchemaByField('ipaddresses');
+		$data_type = $schema[$linked_field]->DATA_TYPE;
+
+		if( in_array($data_type, ['text', 'blob']) ) {
+			// The prefix length must be specified when indexing TEXT/BLOB datatypes.
+			// Max prefix length and behaviour varies with strict mode, MySQL/MariaDB versions and configured collation.
+			//
+			// Too complex: Avoid creating an index for this datatype and warn of possible poor performance.
+
+			$this->Result->show("warning",
+				_("Warning: ")._("Unable to create index for MySQL TEXT/BLOB datatypes.")."<br>".
+				_("Reduced performance when displaying linked addresses by ").escape_input($linked_field)." ($data_type)"."<br>".
+				_("Change custom field data type to VARCHAR and re-save to enable indexing.")
+			);
+			return;
+		}
+
+		// Create selected linked_field index if not exists.
+		try { $this->Database->runQuery("ALTER TABLE `ipaddresses` ADD INDEX ($linked_field);"); }
+		catch (Exception $e) {
+			$this->Result->show("danger", $e->getMessage(), true);
+		}
+		$this->Result->show("info", _("Adding link addresses index : ").$linked_field);
+	}
 
 
 
@@ -1652,19 +1674,17 @@ class Tools extends Common_functions {
 		# fetch settings
 		$this->get_settings ();
 		# check for release
-    	# try to fetch
-    	$release_gh = @file('https://github.com/phpipam/phpipam/releases.atom');
-    	# check
-    	if ($release_gh===false) {
-        	if($print_error) {
-            	$this->Result->show("danger", "Cannot fetch https://github.com/phpipam/phpipam/releases.atom", false);
-            }
-        	return false;
-    	}
+		# try to fetch
+		$curl = $this->curl_fetch_url('https://github.com/phpipam/phpipam/releases.atom');
+		# check
+		if ($curl['result']===false) {
+			if($print_error) {
+				$this->Result->show("danger", "Cannot fetch https://github.com/phpipam/phpipam/releases.atom : ".$curl['error_msg'], false);
+			}
+			return false;
+		}
 		# set releases href
-		$feed = implode($release_gh);
-		// fetch
-		$xml = simplexml_load_string($feed);
+		$xml = simplexml_load_string($curl['result']);
 
 		// if ok
 		if ($xml!==false) {
@@ -1758,7 +1778,7 @@ class Tools extends Common_functions {
         # calculate min/max IP address
         $out['Min host IP']     = long2ip(ip2long($net->network) + 1);
         $out['Max host IP']     = long2ip(ip2long($net->broadcast) - 1);
-        $out['Number of hosts'] = $Subnets->get_max_hosts ($net->bitmask, "IPv4");;
+        $out['Number of hosts'] = $Subnets->max_hosts(['subnet'=>$net->network, 'mask'=>$net->bitmask]);
 
         # subnet class
         $out['Subnet Class']    = $this->get_ipv4_address_type($net->network, $net->broadcast);
@@ -1866,12 +1886,13 @@ class Tools extends Common_functions {
         }
 
         # /min / max hosts
-        $maxIp = gmp_strval(gmp_add(gmp_pow(2, 128 - $mask),$this->ip2long6 ($subnet)));
-		$maxIp = gmp_strval(gmp_sub($maxIp, 1));
+        $longIp = $this->ip2long6($subnet);
+        $minIp = $Subnets->decimal_network_address($longIp, $mask);
+        $maxIp = $Subnets->decimal_broadcast_address($longIp, $mask);
 
-        $out['Min host IP']               = $subnet;
-        $out['Max host IP']               = $this->long2ip6 ($maxIp);
-        $out['Number of hosts']           = $Subnets->get_max_hosts ($mask, "IPv6");
+        $out['Min host IP']               = $this->transform_to_dotted ($minIp);
+        $out['Max host IP']               = $this->transform_to_dotted ($maxIp);
+        $out['Number of hosts']           = $Subnets->max_hosts(['subnet'=>$subnet, 'mask'=>$mask]);
 
         # set address type
         $out['Address type']              = $this->get_ipv6_address_type( $cidr );
@@ -2160,8 +2181,8 @@ class Tools extends Common_functions {
 
         // append ports
         if(($n->type=="static" || $n->type=="destination") && (strlen($n->src_port)>0 && strlen($n->dst_port)>0)) {
-            $sources      = implode("<br>", $sources)." /".$n->src_port;
-            $destinations = implode("<br>", $destinations)." /".$n->dst_port;
+            $sources      = implode("<br>", $sources)." :".$n->src_port;
+            $destinations = implode("<br>", $destinations)." :".$n->dst_port;
         }
         else {
             $sources      = implode("<br>", $sources);
@@ -2402,7 +2423,7 @@ class Tools extends Common_functions {
 		# remove all not permitted!
 		if(sizeof($prefixes)>0) {
 		foreach($prefixes as $k=>$s) {
-			if($User->get_module_permissions ("pstn")<1) { unset($prefixes[$k]); }
+			if($User->get_module_permissions ("pstn")==User::ACCESS_NONE) { unset($prefixes[$k]); }
 		}
 		}
 
@@ -2495,7 +2516,7 @@ class Tools extends Common_functions {
                 $html[] = "	<td><span class='badge badge1 badge5'>".$cnt."</span></td>";
 
 				//device
-				if($User->get_module_permissions ("devices")>1) {
+				if($User->get_module_permissions ("devices")>=User::ACCESS_RW) {
 					$device = ( $option['deviceId']==0 || empty($option['deviceId']) ) ? false : true;
 
 					if($device===false) { $html[] ='	<td>/</td>' . "\n"; }
@@ -2539,18 +2560,18 @@ class Tools extends Common_functions {
 			    }
 
 			    // actions
-				if($User->get_module_permissions ("pstn")>0) {
+				if($User->get_module_permissions ("pstn")>=User::ACCESS_R) {
 					$html[] = "	<td class='actions' style='padding:0px;'>";
 					$links = [];
 			        $links[] = ["type"=>"header", "text"=>"Show"];
 			        $links[] = ["type"=>"link", "text"=>"View prefix", "href"=>create_link($_GET['page'], "pstn-prefixes", $option['id']), "icon"=>"eye", "visible"=>"dropdown"];
 
-			        if($User->get_module_permissions ("pstn")>1) {
+			        if($User->get_module_permissions ("pstn")>=User::ACCESS_RW) {
 			            $links[] = ["type"=>"divider"];
 			            $links[] = ["type"=>"header", "text"=>"Manage"];
 			            $links[] = ["type"=>"link", "text"=>"Edit prefix", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/tools/pstn-prefixes/edit.php' data-class='700' data-action='edit' data-id='$option[id]'", "icon"=>"pencil"];
 			        }
-			        if($User->get_module_permissions ("pstn")>2) {
+			        if($User->get_module_permissions ("pstn")>=User::ACCESS_RWA) {
 			            $links[] = ["type"=>"link", "text"=>"Delete prefix", "href"=>"", "class"=>"open_popup", "dataparams"=>" data-script='app/tools/pstn-prefixes/edit.php' data-class='700' data-action='delete' data-id='$option[id]'", "icon"=>"times"];
 			        }
 			        $html[] = $User->print_actions($User->user->compress_actions, $links);
@@ -2808,14 +2829,19 @@ class Tools extends Common_functions {
 		return $this->address_types[$index]["type"];
 	}
 
-
-
-
-
-
-
-
-
+	/**
+	 * explode $string using $delimiter and filter null values.
+	 *
+	 * @param  string $delimiter
+	 * @param  string $string
+	 * @return mixed
+	 */
+	public function explode_filtered($delimiter, $string) {
+	    $ret = explode($delimiter, $string);
+	    if (!is_array($ret))
+	        return false;
+	    return array_filter($ret);
+	}
 
 
 	/**
@@ -3184,6 +3210,36 @@ class Tools extends Common_functions {
 		return $out;
 	}
 
+
+	/**
+	 * Fetch all routing subnets
+	 *
+	 * @method fetch_routing_subnets
+	 * @param  string $type [bgp,ospf]
+	 * @param  int $id (default: 0)
+	 * @param  bool $cnt (default: true)
+	 * @return false|array
+	 */
+	public function fetch_routing_subnets ($type="bgp", $id = 0, $cnt = false) {
+		// set type
+		$type = $type=="bgp" ? "bgp" : "ospf";
+		// set count
+		$fields = $cnt ? "count(*) as cnt" : "*,s.id as subnet_id";
+		// set query
+		$query = "select $fields from subnets as s, routing_subnets as r
+					where r.type = ? and r.object_id = ? and r.subnet_id = s.id
+					order by r.direction asc, s.subnet asc;";
+		// fetch
+		try { $subnets = $this->Database->getObjectsQuery($query, [$type, $id]); }
+		catch (Exception $e) {
+			$this->Result->show("danger", $e->getMessage(), true);
+		}
+		// return
+		return sizeof($subnets)>0 ? $subnets : false;
+	}
+
+
+
 	/**
 	 * Return all possible customer object relations
 	 *
@@ -3197,7 +3253,8 @@ class Tools extends Common_functions {
 				"vlans"       => "VLAN",
 				"vrf"         => "VRF",
 				"circuits"    => "Circuits",
-				"racks"       => "Racks"
+				"racks"       => "Racks",
+				"routing_bgp" => "BGP Routing"
 				];
 	}
 
@@ -3231,7 +3288,7 @@ class Tools extends Common_functions {
 	 */
 	public function parse_import_file ($filetype = "xls", $subnet = object, $custom_address_fields) {
     	# start object and get settings
-    	$this->settings ();
+    	$this->get_settings ();
     	$this->Subnets = new Subnets ($this->Database);
 
         # CSV
@@ -3456,14 +3513,14 @@ class Tools extends Common_functions {
 		$strict_mode   = ($type === 'IPv6') ? '0' : '2';
 
 		if($perc) {
-			$query = "SELECT SQL_CACHE s.sectionId,s.id,s.subnet,mask,IF(char_length(s.description)>0,s.description,'No description') AS description,
+			$query = "SELECT s.sectionId,s.id,s.subnet,mask,IF(char_length(s.description)>0,s.description,'No description') AS description,
 					COUNT(*) AS `usage`,ROUND(COUNT(*)/(POW(2,$type_max_mask-`mask`)-$strict_mode)*100,2) AS `percentage` FROM `ipaddresses` AS `i`
 					LEFT JOIN `subnets` AS `s` ON i.subnetId = s.id
 					WHERE s.mask < ($type_max_mask-1) AND CAST(s.subnet AS UNSIGNED) $type_operator 4294967295
 					GROUP BY i.subnetId
 					ORDER BY `percentage` DESC $limit;";
 		} else {
-			$query = "SELECT SQL_CACHE s.sectionId,s.id,s.subnet,mask,IF(char_length(s.description)>0,s.description,'No description') AS description,
+			$query = "SELECT s.sectionId,s.id,s.subnet,mask,IF(char_length(s.description)>0,s.description,'No description') AS description,
 					COUNT(*) AS `usage` FROM `ipaddresses` AS `i`
 					LEFT JOIN `subnets` AS `s` ON i.subnetId = s.id
 					WHERE CAST(s.subnet AS UNSIGNED) $type_operator 4294967295

@@ -16,15 +16,6 @@ class User extends Common_functions {
     public $username;
 
     /**
-     * from api flag
-     *
-     * (default value: false)
-     *
-     * @var bool
-     */
-    public $api = false;
-
-    /**
      * flag if user is authenticated
      *
      * (default value: false)
@@ -118,36 +109,6 @@ class User extends Common_functions {
     protected $authmethodparams;
 
     /**
-     *  debugging flag
-     *
-     * (default value: false)
-     *
-     * @var bool
-     */
-    protected $debugging = false;
-
-    /**
-     * Result object
-     *
-     * @var object
-     */
-    public $Result;
-
-    /**
-     * for Database connection
-     *
-     * @var mixed
-     */
-    protected $Database;
-
-    /**
-     * for Logging connection
-     *
-     * @var object
-     */
-    public $Log;
-
-    /**
      * Cryptographic functions
      * @var Crypto
      */
@@ -162,6 +123,7 @@ class User extends Common_functions {
      * @param bool $api (default: false)
      */
     public function __construct (Database_PDO $database, $api = false) {
+        parent::__construct();
 
         # Save database object
         $this->Database = $database;
@@ -217,8 +179,6 @@ class User extends Common_functions {
             if (@$_SESSION===NULL && !isset($_SESSION)) {
                 //set session name
                 $this->set_session_name();
-                //set debugging
-                $this->set_debugging();
                 //set default params
                 $this->set_session_ini_params ();
                 //register session
@@ -234,9 +194,7 @@ class User extends Common_functions {
      */
     private function start_session () {
         // check if database should be set for sessions
-        include( dirname(__FILE__).'/../../config.php' );
-        // db
-        if ($session_storage == "database") {
+        if (Config::ValueOf('session_storage') == "database") {
             new Session_db ($this->Database);
         }
         // local
@@ -262,8 +220,7 @@ class User extends Common_functions {
      * @return void
      */
     private function set_session_name () {
-        include( dirname(__FILE__).'/../../config.php' );
-        $sessname = strlen(@$phpsessname)>0 ? $phpsessname : "phpipam";
+        $sessname = Config::ValueOf('phpsessname', 'phpipam');
         // check old name
         $old_name = session_name();
         if ($sessname != $old_name) {
@@ -301,7 +258,7 @@ class User extends Common_functions {
             $_SESSION['ipamlanguage'] = $this->fetch_lang_details ();
             $_SESSION['lastactive']   = time();
             // 2fa required ?
-            if ($this->twofa) {
+            if (isset($this->twofa) && $this->twofa) {
                 $_SESSION['2fa_required'] = true;
             }
         }
@@ -423,6 +380,11 @@ class User extends Common_functions {
         # authenticated, do we need to do 2fa ?
         elseif (isset($_SESSION['2fa_required']) && $ignore_2fa!==true) {
             header("Location:".$url.create_link ("2fa"));
+            die();
+        }
+        # disabled
+        elseif ($this->user->disabled=="Yes") {
+            header("Location:".$url.create_link ("login"));
             die();
         }
         else {
@@ -555,26 +517,21 @@ class User extends Common_functions {
      */
     public function migrate_resolve_subnets () {
         // read config.php
-        include( dirname(__FILE__).'/../../config.php' );
+        $config = Config::ValueOf('config');
+
         // check for array and values
-        if(isset($config['resolve_subnets'])) {
-            if(is_array($config['resolve_subnets'])) {
-                if (sizeof($config['resolve_subnets'])>0) {
-                    foreach ($config['resolve_subnets'] as $subnetId) {
-                        $update = array (
-                                         "id"         => $subnetId,
-                                         "resolveDNS" => 1
-                                         );
-                        // update
-                        try {
-                            $this->Database->updateObject("subnets", $update);
-                        } catch (Exception $e) {}
-                    }
-                    // print that is can be deleted
-                    $this->Result->show ("warning", '$config[resolve_subnets] '._('was migrated to database. It can be deleted from config.php'), false);
-                }
-            }
+        if(!isset($config['resolve_subnets']) || !is_array($config['resolve_subnets']) || sizeof($config['resolve_subnets'])==0)
+            return;
+
+        foreach ($config['resolve_subnets'] as $subnetId) {
+            $update = ["id" => $subnetId, "resolveDNS" => 1 ];
+            // update
+            try {
+                $this->Database->updateObject("subnets", $update);
+            } catch (Exception $e) {}
         }
+        // print that is can be deleted
+        $this->Result->show ("warning", '$config[resolve_subnets] '._('was migrated to database. It can be deleted from config.php'), false);
     }
 
 
@@ -816,6 +773,10 @@ class User extends Common_functions {
             $this->Log->write ("User login", _('Error: Invalid authentication method'), 2 );
             $this->Result->show("danger", _("Error: Invalid authentication method"), true);
         }
+        # disabled
+        elseif ($this->user->disabled=="Yes") {
+            $this->Result->show("danger", _("Your account has been disabled").".", true);
+        }
         else {
             # set method name variable
             $authmethodtype = $this->authmethodtype;
@@ -844,17 +805,30 @@ class User extends Common_functions {
     private function fetch_user_details ($username, $force = false) {
         # only if not already active
         if(!is_object($this->user) || $force) {
-            try { $user = $this->Database->findObject("users", "username", $username); }
-            catch (Exception $e)     { $this->Result->show("danger", _("Error: ").$e->getMessage(), true);}
+            try {
+                $user = $this->Database->findObject("users", "username", $username);
+            }
+            catch (Exception $e) {
+                $this->Result->show("danger", _("Error: ").$e->getMessage(), true);
+            }
 
             # if not result return false
             $usert = (array) $user;
 
             # admin?
-            if($user->role == "Administrator")    { $this->isadmin = true; }
+            if($user->role == "Administrator") {
+                $this->isadmin = true;
+            }
 
-            if(sizeof($usert)==0)    { $this->block_ip (); $this->Log->write ("User login", _('Invalid username'), 2, $username ); $this->Result->show("danger", _("Invalid username or password"), true);}
-            else                     { $this->user = $user; }
+            if(sizeof($usert)==0) {
+                $this->block_ip ();
+                $this->log_failed_access ($username);
+                $this->Log->write ("User login", _('Invalid username'), 2, $username );
+                $this->Result->show("danger", _("Invalid username or password"), true);
+            }
+            else {
+                $this->user = $user;
+            }
 
             // register permissions
             $this->register_user_module_permissions ();
@@ -929,7 +903,7 @@ class User extends Common_functions {
      */
     private function auth_local ($username, $password) {
         # auth ok
-        if($this->user->password == crypt($password, $this->user->password)) {
+        if(hash_equals($this->user->password, crypt($password, $this->user->password))) {
             # save to session
             $this->write_session_parameters ();
 
@@ -946,6 +920,7 @@ class User extends Common_functions {
         else {
             # add blocked count
             $this->block_ip ();
+            $this->log_failed_access ($username);
 
             $this->Log->write( "User login", "Invalid username or password", 2, $username );
 
@@ -1073,6 +1048,7 @@ class User extends Common_functions {
             else {
                 # add blocked count
                 $this->block_ip();
+                $this->log_failed_access ($username);
                 $this->Log->write($method . " login", "User $username failed to authenticate against " . $method, 1, $username);
                 $this->Result->show("danger", _("Invalid username or password"), true);
 
@@ -1185,6 +1161,7 @@ class User extends Common_functions {
         else {
             # add blocked count
             $this->block_ip ();
+            $this->log_failed_access ($username);
             $this->Log->write( "Radius login", "Failed to authenticate user on radius server", 2, $username );
             $this->Result->show("danger", _("Invalid username or password"), true);
         }
@@ -1528,6 +1505,22 @@ class User extends Common_functions {
         catch (Exception $e) { !$this->debugging ? : $this->Result->show("danger", $e->getMessage(), false); }
     }
 
+    /**
+     * log failed accesses, for further processing by tools like Fail2Ban
+     *
+     * @access private
+     * @return void
+     */
+    private function log_failed_access($username) {
+        $log_msg = Config::ValueOf('failed_access_message');
+
+        if (!is_string($username) || !is_string($log_msg) || strlen($log_msg)<1)
+            return;
+
+        $log_msg = str_replace("%u", $username, $log_msg);
+        error_log($log_msg, 4);
+    }
+
 
 
 	/* @users and groups -------------------- */
@@ -1540,6 +1533,10 @@ class User extends Common_functions {
      * @return array
      */
     public function get_user_permissions_from_json ($json) {
+        // Check cache
+        $cached_item = $this->cache_check('get_user_permissions_from_json', $json);
+        if(is_object($cached_item)) return $cached_item->result;
+
         $groups = array();
         foreach((array) json_decode($json, true) as $group_id => $perm) {
             $group_details = $this->groups_parse (array($group_id));
@@ -1553,6 +1550,8 @@ class User extends Common_functions {
 
             $groups[] = $tmp;
         }
+        // Cache results to avoid repeat database queries.
+        $this->cache_write('get_user_permissions_from_json', (object) ["id"=>$json, "result" => $groups]);
         return $groups;
     }
 
@@ -1614,7 +1613,7 @@ class User extends Common_functions {
         if(is_object($cached_item)) return $cached_item->result;
 
         if (empty($valid_sections)) {
-            $this->cache_write('l2domain_permissions', $valid_sections, (object)["result" => 0]);
+            $this->cache_write('l2domain_permissions', (object) ["id"=>$valid_sections, "result" => 0]);
             return 0;
         }
 
@@ -1646,7 +1645,7 @@ class User extends Common_functions {
         }
 
         # return result
-        $this->cache_write('l2domain_permissions', $valid_sections, (object)["result" => $max_permission]);
+        $this->cache_write('l2domain_permissions', (object) ["id"=>$valid_sections, "result" => $max_permission]);
         return $max_permission;
     }
 
@@ -1695,6 +1694,11 @@ class User extends Common_functions {
         }
     }
 
+    const ACCESS_NONE = 0;
+    const ACCESS_R = 1;
+    const ACCESS_RW = 2;
+    const ACCESS_RWA = 3;
+
     /**
      * Get module permissions for user
      *
@@ -1712,14 +1716,14 @@ class User extends Common_functions {
         if(in_array($module_name, $this->get_modules_with_permissions())) {
             // admin
             if($this->is_admin(false)) {
-                return 3;
+                return User::ACCESS_RWA;
             }
             else {
                 return $this->user->{'perm_'.$module_name};
             }
         }
         else {
-            return 0;
+            return User::ACCESS_NONE;
         }
     }
 
@@ -1733,7 +1737,7 @@ class User extends Common_functions {
      * @param  bool $popup
      * @return bool|void
      */
-    public function check_module_permissions ($module_name = "", $required_level = 1, $die = true, $popup = false) {
+    public function check_module_permissions ($module_name = "", $required_level = User::ACCESS_R, $die = true, $popup = false) {
         // check if valid
         $valid = $this->get_module_permissions($module_name)>=$required_level;
         // return or die ?
@@ -1754,6 +1758,7 @@ class User extends Common_functions {
     public function get_modules_with_permissions () {
         return [
                 "vlan",
+                "l2dom",
                 "vrf",
                 "pdns",
                 "circuits",
@@ -1763,7 +1768,8 @@ class User extends Common_functions {
                 "customers",
                 "locations",
                 "devices",
-                "dhcp"
+                "dhcp",
+                "routing"
             ];
     }
 

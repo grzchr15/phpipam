@@ -46,7 +46,7 @@ $Result		= new Result();
 // set exit flag to true
 $Scan->ping_set_exit(true);
 // set debugging
-$Scan->reset_debugging(false);
+$Scan->set_debugging(false);
 // fetch agent
 $agent = $Tools->fetch_object("scanAgents", "id", 1);
 // set address types array
@@ -54,6 +54,9 @@ $Tools->get_addresses_types ();
 // change scan type?
 if(@$config['ping_check_method'])
 $Scan->reset_scan_method ($config['ping_check_method']);
+
+# Check if scanning has been disabled
+if($Scan->icmp_type=="none") { $Result->show("danger", _('Scanning disabled').' (scanPingType=None)', true, true); }
 
 // set ping statuses
 $statuses = explode(";", $Scan->settings->pingStatus);
@@ -73,7 +76,7 @@ $nowdate = date ("Y-m-d H:i:s");
 // script can only be run from cli
 if(php_sapi_name()!="cli") 						{ die("This script can only be run from cli!"); }
 // test to see if threading is available
-if(!PingThread::available()) 					{ die("Threading is required for scanning subnets. Please recompile PHP with pcntl extension"); }
+if(!PingThread::available($errmsg)) 			{ die("Threading is required for scanning subnets - Error: $errmsg\n"); }
 // verify ping path
 if ($Scan->icmp_type=="ping") {
 if(!file_exists($Scan->settings->scanPingPath)) { die("Invalid ping path!"); }
@@ -86,7 +89,7 @@ if(!file_exists($Scan->settings->scanFPingPath)){ die("Invalid fping path!"); }
 
 //first fetch all subnets to be scanned
 $scan_subnets = $Subnets->fetch_all_subnets_for_pingCheck (1);
-if($Scan->debugging)							{ print_r($scan_subnets); }
+if($Scan->get_debugging()==true)				{ print_r($scan_subnets); }
 if($scan_subnets===false) 						{ die("No subnets are marked for checking status updates\n"); }
 //fetch all addresses that need to be checked
 foreach($scan_subnets as $s) {
@@ -105,7 +108,7 @@ foreach($scan_subnets as $s) {
 			                   );
 		}
 		//save addresses
-		if(sizeof($subnet_addresses)>0) {
+		if(is_array($subnet_addresses) && sizeof($subnet_addresses)>0) {
 			foreach($subnet_addresses as $a) {
 				//ignore excludePing
 				if($a->excludePing!=1) {
@@ -148,7 +151,7 @@ foreach($scan_subnets as $s) {
 }
 
 
-if($Scan->debugging)							{ print "Using $Scan->icmp_type\n--------------------\n\n";print_r($addresses); }
+if($Scan->get_debugging()==true)				{ print "Using $Scan->icmp_type\n--------------------\n\n";print_r($addresses); }
 //if none die
 if(!isset($addresses))							{ die("No addresses to check"); }
 
@@ -200,7 +203,7 @@ if($Scan->icmp_type=="fping") {
 
 	//now we must remove all non-existing hosts
 	foreach($subnets as $sk=>$s) {
-		if(!empty(@$s['result']) && is_array($addresses[$s['id']])) {
+		if(!empty($s['result']) && is_array($addresses[$s['id']])) {
 			//loop addresses
 			foreach($addresses[$s['id']] as $ak=>$a) {
 				//offline host
@@ -285,7 +288,7 @@ else {
 	$Addresses = new Addresses ($Database);
 
 	// reset debugging
-	$Scan->reset_debugging(false);
+	$Scan->set_debugging(false);
 
 	# update all active statuses
 	foreach($addresses as $k=>$a) {
@@ -380,7 +383,7 @@ $Scan->ping_update_scanagent_checktime (1, $nowdate);
 
 
 # print change
-if($Scan->debugging)							{ print "\nAddress changes:\n----------\n"; print_r($address_change); }
+if($Scan->get_debugging()==true)				{ print "\nAddress changes:\n----------\n"; print_r($address_change); }
 
 # all done, mail diff?
 if(sizeof($address_change)>0 && $config['ping_check_send_mail']) {
@@ -398,7 +401,7 @@ if(sizeof($address_change)>0 && $config['ping_check_send_mail']) {
 	// set exit flag to true
 	$Scan->ping_set_exit(true);
 	// set debugging
-	$Scan->reset_debugging(false);
+	$Scan->set_debugging(false);
 
 
 	# check for recipients
@@ -462,7 +465,7 @@ if(sizeof($address_change)>0 && $config['ping_check_send_mail']) {
 
 	    		// reformat
 	    		$lastSeen = date("m/d H:i", strtotime($change['lastSeen']) );
-				$ago 	  = $lastSeen." (".$Result->sec2hms($timeDiff)." ago)";
+				$ago 	  = $lastSeen." (".$Tools->sec2hms($timeDiff)." ago)";
 			}
 	        // desc
 			$change['description'] = strlen($change['description'])>0 ? "$Subnets->mail_font_style $change[description]</font>" : "$Subnets->mail_font_style / </font>";

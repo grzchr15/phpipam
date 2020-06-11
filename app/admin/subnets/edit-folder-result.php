@@ -150,8 +150,7 @@ else {
 					"id"             => @$_POST['subnetId'],
 					"isFolder"       => 1,
 					"masterSubnetId" => $_POST['masterSubnetId'],
-					"description"    => @$_POST['description'],
-					"isFull"         => @$_POST['isFull']
+					"description"    => @$_POST['description']
 					);
 	# for new subnets we add permissions
 	if($_POST['action']=="add") {
@@ -219,7 +218,7 @@ else {
 
 		# edit success
 		if($_POST['action']=="delete")	{ $Result->show("success", _('Folder, IP addresses and all belonging subnets deleted successfully').'!', false); }
-		else							{ $Result->show("success", _("Folder $_POST[action] successfull").'!', true); }
+		else							{ $Result->show("success", _("Folder $_POST[action] successful").'!', true); }
 	}
 }
 

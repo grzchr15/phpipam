@@ -19,10 +19,10 @@ $Result 	= new Result ();
 $User->check_user_session();
 # perm check popup
 if($_POST['action']=="edit") {
-    $User->check_module_permissions ("racks", 2, true, true);
+    $User->check_module_permissions ("racks", User::ACCESS_RW, true, true);
 }
 else {
-    $User->check_module_permissions ("racks", 3, true, true);
+    $User->check_module_permissions ("racks", User::ACCESS_RWA, true, true);
 }
 
 # check maintaneance mode
@@ -112,7 +112,6 @@ $values = array(
 				"id"          => @$rack['rackid'],
 				"name"        => @$rack['name'],
 				"size"        => @$rack['size'],
-				"location"    => @$rack['location'],
 				"hasBack"     => $Admin->verify_checkbox(@$rack['hasBack']),
                 "topDown"     => @$rack['topDown'],
 				"description" => @$rack['description']
@@ -122,26 +121,23 @@ if(isset($update)) {
 	$values = array_merge($values, $update);
 }
 
-# remove location
-if ($User->get_module_permissions ("locations")>0) {
-	unset($values['location']);
+# append location
+if ($User->settings->enableLocations=="1" && $User->get_module_permissions ("locations")>=User::ACCESS_RW) {
+    if (is_numeric($_POST['location'])) {
+        $values['location'] = $_POST['location'] > 0 ? $_POST['location'] : NULL;
+    }
 }
 
 # append customerId
-if($User->settings->enableCustomers=="1" && $User->get_module_permissions ("customers")>0) {
-	if (is_numeric($_POST['customer_id'])) {
-		if ($_POST['customer_id']>0) {
-			$values['customer_id'] = $_POST['customer_id'];
-		}
-		else {
-			$values['customer_id'] = NULL;
-		}
-	}
+if($User->settings->enableCustomers=="1" && $User->get_module_permissions ("customers")>=User::ACCESS_RW) {
+    if (is_numeric($_POST['customer_id'])) {
+        $values['customer_id'] = $_POST['customer_id'] > 0 ? $_POST['customer_id'] : NULL;
+    }
 }
 
 # update rack
 if(!$Admin->object_modify("racks", $_POST['action'], "id", $values))	{}
-else																	{ $Result->show("success", _("Rack $rack[action] successfull").'!', false); }
+else																	{ $Result->show("success", _("Rack $rack[action] successful").'!', false); }
 
 if($_POST['action']=="delete"){
 	# remove all references from subnets and ip addresses

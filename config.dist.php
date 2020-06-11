@@ -18,7 +18,7 @@ $db['port'] = 3306;
  *
  * Set to the hostname or IP address of the webserver, or % to allow all
  ******************************/
-#$db['webhost'] = 'localhost';
+// $db['webhost'] = 'localhost';
 
 
 /**
@@ -37,7 +37,8 @@ $db['ssl_key']    = '/path/to/cert.key';             // path to an SSL key file.
 $db['ssl_cert']   = '/path/to/cert.crt';             // path to an SSL certificate file. Only makes sense combined with ssl_key
 $db['ssl_ca']     = '/path/to/ca.crt';               // path to a file containing SSL CA certs
 $db['ssl_capath'] = '/path/to/ca_certs';             // path to a directory containing CA certs
-$db['ssl_cipher'] = '/DHE-RSA-AES256-SHA:AES128-SHA'; // one or more SSL Ciphers
+$db['ssl_cipher'] = 'DHE-RSA-AES256-SHA:AES128-SHA'; // one or more SSL Ciphers
+$db['ssl_verify'] = 'true';                          // Verify Common Name (CN) of server certificate?
 
 
 /**
@@ -63,6 +64,7 @@ $config['removed_addresses_timelimit'] = 86400 * 7;  // int, after how many seco
 # resolveIPaddresses.php script parameters
 $config['resolve_emptyonly']           = true;       // if true it will only update the ones without DNS entry!
 $config['resolve_verbose']             = true;       // verbose response - prints results, cron will email it to you!
+$config['disable_main_login_form']     = false;      // disable main login form if you want use another authentification method by default (SAML, LDAP, etc.)
 
 
 /**
@@ -74,11 +76,14 @@ $config['resolve_verbose']             = true;       // verbose response - print
 $debugging = false;
 
 /*
- * API Crypt security provider. "mcrypt" or "openssl"
+ * API Crypt security provider. "mcrypt" or "openssl*"
+ * Supported methods:
+ *    openssl-128-cbc (alias openssl, openssl-128) *default
+ *    openssl-256-cbc (alias openssl-256)
  *
- * default as of 1.3.2 "openssl"
+ * default as of 1.3.2 "openssl-128-cbc"
  ******************************/
-#$api_crypt_encryption_library = "mcrypt";
+// $api_crypt_encryption_library = "mcrypt";
 
 
 /**
@@ -105,8 +110,15 @@ $session_storage = "files";
 
 
 /**
- *	BASE definition if phpipam
- * 	is not in root directory (e.g. /phpipam/)
+ * Path to access phpipam in site URL, http:/url/BASE/
+ *
+ * BASE definition should end with a trailing slash "/"
+ * BASE will be set automatically if not defined. Examples...
+ *
+ *  If you access the login page at http://phpipam.local/           =  define('BASE', "/");
+ *  If you access the login page at http://company.website/phpipam/ =  define('BASE', "/phpipam/");
+ *  If you access the login page at http://company.website/ipam/    =  define('BASE', "/ipam/");
+ *
  ******************************/
 if(!defined('BASE'))
 define('BASE', "/");
@@ -155,25 +167,12 @@ $proxy_pass     = 'PASSWORD';                             // Proxy Password
 $proxy_use_auth = false;                                  // Enable/Disable Proxy authentication
 
 /**
- * proxy to use for every internet access like update check
+ * Failed access
+ * message to log into webserver logs in case of failed access, for further processing by tools like Fail2Ban
+ * Apache users should use : user "%u" authentication failure for "phpIPAM"
+ * Nginx  users should use : user "%u" was not found in "phpIPAM"
  ******************************/
-$proxy_auth     = base64_encode("$proxy_user:$proxy_pass");
-
-if ($proxy_enabled == true && $proxy_use_auth == false) {
-    stream_context_set_default(array('http' => array('proxy'=>'tcp://'.$proxy_server.':'.$proxy_port)));
-}
-elseif ($proxy_enabled == true && $proxy_use_auth == true) {
-    stream_context_set_default(
-        array('http' => array(
-              'proxy' => "tcp://$proxy_server:$proxy_port",
-              'request_fulluri' => true,
-              'header' => "Proxy-Authorization: Basic $proxy_auth"
-        )));
-}
-
-/* for debugging proxy config uncomment next line */
-#var_dump(stream_context_get_options(stream_context_get_default()));
-
+// $failed_access_message = '';
 
 /**
  * General tweaks
@@ -188,4 +187,11 @@ $config['split_ip_custom_fields'] = false;                  // Show custom field
  * The default behaviour is to use the system wide default php version symlinked to php in PHP_BINDIR (/usr/bin/php).
  * If multiple php versions are present; overide selection with $php_cli_binary.
  */
-#$php_cli_binary = '/usr/bin/php7.1';
+// $php_cli_binary = '/usr/bin/php7.1';
+
+/**
+ * Path to mysqldump binary
+ *
+ * default: '/usr/bin/mysqldump'
+ */
+// $mysqldump_cli_binary = '/usr/bin/mysqldump';

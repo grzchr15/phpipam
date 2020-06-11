@@ -219,13 +219,13 @@ function createCookie(name,value,days) {
     var date;
     var expires;
 
-    if (typeof days === 'undefined') {
+    if (typeof days !== 'undefined') {
         date = new Date();
         date.setTime(date.getTime()+(days*24*60*60*1000));
         expires = "; expires="+date.toGMTString();
     }
     else {
-	    var expires = "";
+        var expires = "";
     }
 
     document.cookie = name+"="+value+expires+"; path=/";
@@ -265,7 +265,7 @@ $('table.sorted-new')
 $('table.sorted')
                  .attr("data-toggle", "table")
                  .attr('data-pagination', 'true')
-                 .attr('data-page-size', '50')
+                 .attr('data-page-size', '250')
                  .attr('data-page-list', '[50,100,250,500,All]')
                  .attr('data-search','true')
                  .attr('data-classes','table-no-bordered')
@@ -1422,6 +1422,15 @@ $('#clearLogs').click(function() {
     showSpinner();
     $.post('app/tools/logs/clear-logs.php', function(data) {
     	$('div.logs').html(data);
+        hideSpinner();
+    }).fail(function(jqxhr, textStatus, errorThrown) { showError(jqxhr.statusText + "<br>Status: " + textStatus + "<br>Error: "+errorThrown); });
+    return false;
+});
+//logs clear
+$('#clearChangeLogs').click(function() {
+    showSpinner();
+    $.post('app/tools/changelog/clear-logs.php', function(data) {
+        $('div.logs').html(data);
         hideSpinner();
     }).fail(function(jqxhr, textStatus, errorThrown) { showError(jqxhr.statusText + "<br>Status: " + textStatus + "<br>Error: "+errorThrown); });
     return false;

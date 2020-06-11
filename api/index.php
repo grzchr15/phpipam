@@ -22,8 +22,8 @@ if(!function_exists("create_link"))
 require_once( dirname(__FILE__) . '/../functions/functions.php' );		// functions and objects from phpipam
 
 # include common API controllers
-require( dirname(__FILE__) . '/controllers/Common.php');			// common methods
-require( dirname(__FILE__) . '/controllers/Responses.php');			// exception, header and response handling
+require_once( dirname(__FILE__) . '/controllers/Common.php');			// common methods
+require_once( dirname(__FILE__) . '/controllers/Responses.php');			// exception, header and response handling
 
 # settings
 $time_response         = true;          // adds [time] to response
@@ -36,8 +36,7 @@ $User     = new User ($Database);
 $Response = new Responses ();
 
 # get phpipam settings
-if(SETTINGS===null)
-$settings = $Tools->fetch_object ("settings", "id", 1);
+$settings = $Tools->get_settings();
 
 # set empty controller for options
 if($_SERVER['REQUEST_METHOD']=="OPTIONS") {
@@ -67,20 +66,11 @@ try {
 
 	// crypt check
 	if($app->app_security=="crypt") {
-		$api_crypt_encryption_library = "openssl";
-		// Override $api_crypt_encryption_library="mcrypt" from config.php if required.
-		include( dirname(__FILE__).'/../config.php' );
-
-		// verify php extensions
-		$extensions = ($api_crypt_encryption_library == "mcrypt") ? ["mcrypt"] : ["openssl"];
-		foreach ($extensions as $extension) {
-		if (!in_array($extension, get_loaded_extensions()))
-		    { $Response->throw_exception(500, 'php extension '.$extension.' missing'); }
-		}
+		$encryption_method = Config::ValueOf('api_crypt_encryption_library', 'openssl-128-cbc');
 
 		// decrypt request - form_encoded
 		if(strpos($_SERVER['CONTENT_TYPE'], "application/x-www-form-urlencoded")!==false) {
-			$decoded = $User->Crypto->decrypt($_GET['enc_request'], $app->app_code, $api_crypt_encryption_library);
+			$decoded = $User->Crypto->decrypt($_GET['enc_request'], $app->app_code, $encryption_method);
 			if ($decoded === false) $Response->throw_exception(503, 'Invalid enc_request');
 			$decoded = $decoded[0]=="?" ? substr($decoded, 1) : $decoded;
 			parse_str($decoded, $encrypted_params);
@@ -89,7 +79,7 @@ try {
 		}
 		// json_encoded
 		else {
-			$encrypted_params = $User->Crypto->decrypt($_GET['enc_request'], $app->app_code, $api_crypt_encryption_library);
+			$encrypted_params = $User->Crypto->decrypt($_GET['enc_request'], $app->app_code, $encryption_method);
 			if ($encrypted_params === false) $Response->throw_exception(503, 'Invalid enc_request');
 			$encrypted_params = json_decode($encrypted_params, true);
 			$encrypted_params['app_id'] = $_GET['app_id'];
@@ -99,7 +89,9 @@ try {
 	// SSL checks
 	elseif($app->app_security=="ssl_token" || $app->app_security=="ssl_code") {
 		// verify SSL
-		if (!$Tools->isHttps()) { $Response->throw_exception(503, _('SSL connection is required for API')); }
+		if (!$Tools->isHttps()) {
+			$Response->throw_exception(503, _('SSL connection is required for API'));
+		}
 
 		// save request parameters
 		$params = (object) $_GET;
@@ -107,12 +99,12 @@ try {
 	// no security
 	elseif($app->app_security=="none") {
 		// make sure it is permitted in config.php
-		if ($api_allow_unsafe) {
-			$params = (object) $_GET;
-		}
-		else {
+		if (Config::ValueOf('api_allow_unsafe')!==true) {
 			$Response->throw_exception(503, _('SSL connection is required for API'));
 		}
+
+		// save request parameters
+		$params = (object) $_GET;
 	}
 	// error, invalid security
 	else {
@@ -120,8 +112,8 @@ try {
 	}
 
 
-	// append POST parameters if POST or PATCH
-	if($_SERVER['REQUEST_METHOD']=="POST" || $_SERVER['REQUEST_METHOD']=="PATCH" || $_SERVER['REQUEST_METHOD']=="DELETE") {
+	// Append Global API parameters / POST parameters if POST,PATCH or DELETE
+	if($_SERVER['REQUEST_METHOD']=="GET" || $_SERVER['REQUEST_METHOD']=="POST" || $_SERVER['REQUEST_METHOD']=="PATCH" || $_SERVER['REQUEST_METHOD']=="DELETE") {
 		// if application tupe is JSON (application/json)
         if(strpos($_SERVER['CONTENT_TYPE'], "application/json")!==false){
             $rawPostData = file_get_contents('php://input');
@@ -166,7 +158,7 @@ try {
 	if (@$params->controller != "user") {
 		if($app->app_security=="ssl_token" || $app->app_security=="none") {
 			// start auth class and validate connection
-			require( dirname(__FILE__) . '/controllers/User.php');				// authentication and token handling
+			require_once( dirname(__FILE__) . '/controllers/User.php');				// authentication and token handling
 			$Authentication = new User_controller ($Database, $Tools, $params, $Response);
 			$Authentication->check_auth ();
 		}
@@ -174,7 +166,7 @@ try {
 		// validate ssl_code
 		if($app->app_security=="ssl_code") {
 			// start auth class and validate connection
-			require( dirname(__FILE__) . '/controllers/User.php');				// authentication and token handling
+			require_once( dirname(__FILE__) . '/controllers/User.php');				// authentication and token handling
 			$Authentication = new User_controller ($Database, $Tools, $params, $Response);
 			$Authentication->check_auth_code ($app->app_id);
 		}
@@ -182,9 +174,9 @@ try {
 	// throw token not needed
 	else {
 		// validate ssl_code
-		if($app->app_security=="ssl_code") {
+		if($app->app_security=="ssl_code" && $_SERVER['REQUEST_METHOD']!="GET") {
 			// start auth class and validate connection
-			require( dirname(__FILE__) . '/controllers/User.php');				// authentication and token handling
+			require_once( dirname(__FILE__) . '/controllers/User.php');				// authentication and token handling
 			$Authentication = new User_controller ($Database, $Tools, $params, $Response);
 			$Authentication->check_auth_code ($app->app_id);
 
@@ -220,11 +212,11 @@ try {
 
 	// check if the controller exists. if not, throw an exception
 	if( file_exists( dirname(__FILE__) . "/controllers/$controller_file.php") ) {
-		require( dirname(__FILE__) . "/controllers/$controller_file.php");
+		require_once( dirname(__FILE__) . "/controllers/$controller_file.php");
 	}
 	// check custom controllers
 	elseif( file_exists( dirname(__FILE__) . "/controllers/custom/$controller_file.php") ) {
-		require( dirname(__FILE__) . "/controllers/custom/$controller_file.php");
+		require_once( dirname(__FILE__) . "/controllers/custom/$controller_file.php");
 	}
 	else {
 		$Response->throw_exception(400, 'Invalid controller');
@@ -288,7 +280,7 @@ try {
 	// set flag if it came from Result, just to be sure
 	if($Response->exception!==true) {
 		$Response->exception = true;
-		$Response->result['success'] = 0;
+		$Response->result['success'] = false;
 		$Response->result['code'] 	 = 500;
 		$Response->result['message'] = $result;
 	}

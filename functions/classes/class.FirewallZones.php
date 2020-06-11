@@ -7,6 +7,13 @@
 
 class FirewallZones extends Common_functions {
 
+	/**
+	 * private Subnets object
+	 *
+	 * @var Subnets
+	 * @access private
+	 */
+	private $Subnets;
 
 	/**
 	 * connection error string
@@ -50,21 +57,6 @@ class FirewallZones extends Common_functions {
 	 */
 	public $firewallZoneSettings;
 
-	/**
-	 * Log
-	 *
-	 * @var mixed
-	 * @access public
-	 */
-	public $Log;
-
-	/**
-	 * Database
-	 *
-	 * @var mixed
-	 * @access protected
-	 */
-	protected $Database;
 
 
 
@@ -155,7 +147,7 @@ class FirewallZones extends Common_functions {
 			} elseif($zoneGenerator == 1) {
 				# the highest convertable integer value for dechex() is 4294967295!
 				if($zoneName > 4294967295) {
-					return $this->Result->show("danger", _("The maximum convertable vlaue is reached. Consider to switch to decimal or text mode and change the zone name length value."), true);
+					return $this->Result->show("danger", _("The maximum convertable value is reached. Consider to switch to decimal or text mode and change the zone name length value."), true);
 				}
 				if(strlen(dechex($zoneName)) > $zoneLength){
 					return $this->Result->show("danger", _("Maximum zone name length reached! Consider to change your settings in order to generate larger zone names."), true);
@@ -645,7 +637,7 @@ class FirewallZones extends Common_functions {
 			print '<span><i class="fa fa-close"></i></span>';
 			print "</a>";
 
-			if ($network->subnetIsFolder == 1 ) {
+			if ($network->subnetIsFolder == 1) {
 				print 'Folder: '.$network->subnetDescription;
 			} else {
 				# display network information with or without description
@@ -1035,7 +1027,7 @@ class FirewallZones extends Common_functions {
 			# write changelog
 			$this->Log->write_changelog('subnet', 'edit', 'success', $subnet_old,$subnet);
 
-			return ture;
+			return true;
 		}
 		return false;
 	}
@@ -1154,7 +1146,7 @@ class FirewallZones extends Common_functions {
 			# write changelog
 			$this->Log->write_changelog('ip_addr', 'edit', 'success', (array)$address_old,(array)$address);
 
-			return ture;
+			return true;
 		}
 
 		return false;

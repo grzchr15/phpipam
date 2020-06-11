@@ -46,8 +46,8 @@ $subnet_permission = $Subnets->check_permission($User->user, $subnet['id']);
 $subnet_permission > 1 ?:		$Result->show("danger", _('Cannot edit IP address details').'! <br>'._('You do not have write access for this network'), true, true);
 
 // set selected address and required addresses fields array
-$selected_ip_fields = explode(";", $User->settings->IPfilter);
-$required_ip_fields = explode(";", $User->settings->IPrequired);																			//format to array
+$selected_ip_fields = $Tools->explode_filtered(";", $User->settings->IPfilter);
+$required_ip_fields = $Tools->explode_filtered(";", $User->settings->IPrequired);																			//format to array
 
 # get all custom fields
 $custom_fields = $Tools->fetch_custom_fields ('ipaddresses');
@@ -109,7 +109,7 @@ $locations = $Tools->fetch_all_objects ("locations", "name");
 
 ?>
 
-<script type="text/javascript">
+<script>
 $(document).ready(function() {
 /* bootstrap switch */
 var switch_options = {
@@ -214,10 +214,6 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
 			<?php
 			if (strpos($_SERVER['HTTP_REFERER'], "verify-database")!=0) { print "<input type='hidden' name='verifydatabase' value='yes'>"; }
 			?>
-
-			<?php if($action=="edit" || $action=="delete") { ?>
-			<input type="hidden" name="nostrict" value="yes">
-			<?php }  ?>
     	</td>
 	</tr>
 
@@ -361,7 +357,7 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
     		$records  = $PowerDNS->search_records ("name", $address['hostname'], 'name', true);
     		$records2 = $PowerDNS->search_records ("content", $address['ip'], 'content', true);
 
-    		if ($records!==false || $records2!==false) {
+    		if (is_array($records) || is_array($records2)) {
         		// form
         		print '<tr>';
         	 	print '<td>'._("Remove DNS records").'</td>';
@@ -376,7 +372,7 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
         	 	print "<hr>";
 
         	 	// hostname records
-        	 	if ($records!==false) {
+        	 	if (is_array($records)) {
             	 	print " <div style='margin-left:60px'>";
             	 	$dns_records[] = $address['hostname'];
             	 	$dns_records[] = "<ul class='submenu-dns'>";
@@ -392,7 +388,7 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
         	 	}
 
         	 	// IP records
-        	 	if ($records2!==false) {
+        	 	if (is_array($records2)) {
             	 	print " <div style='margin-left:60px'>";
             	 	$dns_records[] = $address['ip'];
             	 	$dns_records[] = "<ul class='submenu-dns'>";
@@ -404,7 +400,7 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
                     //search also for CNAME records
                     $dns_cname_unique = array();
                     $dns_records_cname = $PowerDNS->seach_aliases ($r->name);
-                    if($dns_records_cname!==false) {
+                    if(is_array($dns_records_cname)) {
                         foreach ($dns_records_cname as $cn) {
                             if (!in_array($cn->name, $dns_cname_unique)) {
                                 $cname[] = "<li><i class='icon-gray fa fa-gray fa-angle-right'></i> <span class='badge badge1 badge2 editRecord' data-action='edit' data-id='$cn->id' data-domain_id='$cn->domain_id'>$cn->type</span> $cn->name </li>";
@@ -438,7 +434,7 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
 	print "</tr>";
 
 	// customer
-	if ($User->settings->enableCustomers=="1" && $User->get_module_permissions ("customers")>0) {
+	if ($User->settings->enableCustomers=="1" && $User->get_module_permissions ("customers")>=User::ACCESS_R) {
 
 		print '<tr>'. "\n";
 		print '	<td>'._('Customer').'</td>'. "\n";
@@ -483,7 +479,7 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
 	if(!isset($address['port'])) 	{$address['port'] = "";}
 
 	# both are active
-	if(in_array('switch', $selected_ip_fields) && $User->get_module_permissions ("devices")>0) {
+	if(in_array('switch', $selected_ip_fields) && $User->get_module_permissions ("devices")>=User::ACCESS_R) {
 
 		// set star if field is required
 		$required = in_array("switch", $required_ip_fields) ? " *" : "";
@@ -536,17 +532,17 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
 
 
     // location
-    if($User->settings->enableLocations=="1" && $User->get_module_permissions ("locations")>0) { ?>
+    if($User->settings->enableLocations=="1" && $User->get_module_permissions ("locations")>=User::ACCESS_R) { ?>
 	<tr>
 		<td>
 			<?php
 			// set star if field is required
-			$required = in_array("location_item", $required_ip_fields) ? " *" : "";
+			$required = in_array("location", $required_ip_fields) ? " *" : "";
 			print _('Location').$required;
 			?>
 			</td>
 		<td>
-			<select name="location_item" class="form-control input-sm input-w-auto">
+			<select name="location" class="form-control input-sm input-w-auto">
 				<?php if($required=="") { ?>
     			<option value="0"><?php print _("None"); ?></option>
     			<?php } ?>
@@ -642,9 +638,9 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
 			elseif($field['type'] == "date" || $field['type'] == "datetime") {
 				// just for first
 				if($timeP==0) {
-					print '<link rel="stylesheet" type="text/css" href="css/bootstrap/bootstrap-datetimepicker.min.css">';
-					print '<script type="text/javascript" src="js/bootstrap-datetimepicker.min.js"></script>';
-					print '<script type="text/javascript">';
+					print '<link rel="stylesheet" type="text/css" href="css/bootstrap/bootstrap-datetimepicker.min.css?v='.SCRIPT_PREFIX.'">';
+					print '<script src="js/bootstrap-datetimepicker.min.js?v='.SCRIPT_PREFIX.'"></script>';
+					print '<script>';
 					print '$(document).ready(function() {';
 					//date only
 					print '	$(".datepicker").datetimepicker( {pickDate: true, pickTime: false, pickSeconds: false });';
@@ -715,36 +711,6 @@ function validate_mac (ip, mac, sectionId, vlanId, id) {
         </td>
     </tr>
     <?php } ?>
-
-	<?php
-	#get type
-	 $type = $Addresses->identify_address ($subnet['subnet']);
-
-	 if($subnet['mask'] < 31 && ($action=='add' ||  substr($action, 0,4)=="all-") && $type == "IPv4" ) { ?>
-	 <!-- ignore NW /BC checks -->
-	 <tr>
-		<td><?php print _('Not strict'); ?></td>
-		<td>
-		<div class='checkbox info2'>
-			<input type="checkbox" name="nostrict" value="yes"><?php print _('Permit adding network/broadcast as IP'); ?>
-		</div>
-		</td>
-	</tr>
-	<?php } ?>
-
-	<?php
-	 if($subnet['mask'] < 127 && $action=='add' && $type == "IPv6" ) { ?>
-	 <!-- ignore NW /BC checks -->
-	 <tr>
-		<td><?php print _('Not strict'); ?></td>
-		<td>
-		<div class='checkbox info2'>
-			<input type="checkbox" name="nostrict" value="yes"><?php print _('Permit adding network/broadcast as IP'); ?>
-		</div>
-		</td>
-	</tr>
-	<?php } ?>
-
 
 </table>	<!-- end edit ip address table -->
 <?php if($config['split_ip_custom_fields']===true) {

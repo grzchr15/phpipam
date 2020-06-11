@@ -15,10 +15,10 @@ $User->check_user_session();
 
 # perm check popup
 if($_POST['action']=="edit") {
-    $User->check_module_permissions ("locations", 2, true, false);
+    $User->check_module_permissions ("locations", User::ACCESS_RW, true, false);
 }
 else {
-    $User->check_module_permissions ("locations", 3, true, false);
+    $User->check_module_permissions ("locations", User::ACCESS_RWA, true, false);
 }
 
 # check maintaneance mode
@@ -57,7 +57,11 @@ if($_POST['action']=="add" || $_POST['action']=="edit") {
                 $_POST['long'] = $latlng['lng'];
             }
             else {
-                $Result->show("warning", _('Failed to update location lat/lng from google'), false);
+                if (!empty($latlng['info'])) {
+                    $Result->show("info", escape_input($latlng['info']), false);
+                } else {
+                    $Result->show("warning", _('Failed to update location lat/lng from google')."<br>".escape_input($latlng['error']), false);
+                }
             }
         }
     }

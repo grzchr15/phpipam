@@ -53,7 +53,7 @@ else {
 }
 ?>
 
-<script type="text/javascript">
+<script>
 $(document).ready(function(){
     if ($("[rel=tooltip]").length) { $("[rel=tooltip]").tooltip(); }
 
@@ -104,6 +104,19 @@ $(document).ready(function(){
     	<td><input type="text" class="form-control input-sm input-w-250" name="email" value="<?php print @$user['email']; ?>"></td>
     	<td class="info2"><?php print _('Enter users email address'); ?></td>
     </tr>
+
+    <!-- Status -->
+    <tr>
+    	<td><?php print _('Status'); ?></td>
+    	<td>
+        <select name="disabled" class="form-control input-sm input-w-auto">
+            <option value="Yes" <?php if (@$user['disabled'] == "Yes") print "selected"; ?>><?php print _('Disabled'); ?></option>
+            <option value="No" 	<?php if (@$user['disabled'] == "No" || $_POST['action'] == "add") print "selected"; ?>><?php print _('Enabled'); ?></option>
+        </select>
+
+        </td>
+    	<td class="info2"><?php print _('You can disable user here'); ?>.</td>
+	</tr>
 
     <!-- role -->
     <tr>
@@ -313,6 +326,8 @@ $(document).ready(function(){
 	$perm_modules = [];
 	// VLAN
 	$perm_modules["perm_vlan"] = "VLAN";
+	// VLAN
+	$perm_modules["perm_l2dom"] = "L2Domains";
 	// VRF
 	$perm_modules["perm_vrf"]  = "VRF";
 	// powerDNS
@@ -338,6 +353,9 @@ $(document).ready(function(){
 	// PSTN
 	if ($User->settings->enablePSTN==1)
 	$perm_modules["perm_pstn"] = "PSTN";
+	// Routing
+	if ($User->settings->enableRouting==1)
+	$perm_modules["perm_routing"] = "Routing";
 
 	// get permissions
 	$module_permissions = json_decode($user['module_permissions'], true);

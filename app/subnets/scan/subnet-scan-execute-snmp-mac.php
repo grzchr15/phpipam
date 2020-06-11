@@ -1,7 +1,7 @@
 <?php
 
-# Check we have been included via subnet-scan-excute.php and not called directly
-require("subnet-scan-check-included.php");
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../functions/include-only.php' );
 
 /*
  * Discover new hosts with snmp
@@ -22,7 +22,7 @@ if ($subnet===false)                            { $Result->show("danger", _("Inv
 
 # fetch vlan
 $vlan = $Tools->fetch_object ("vlans", "vlanId", $subnet->vlanId);
-if ($vlan===false)                              { $Result->show("danger", _("Subnet must have VLAN assigned for MAc address query"), true);  }
+if ($vlan===false)                              { $Result->show("danger", _("Subnet must have VLAN assigned for MAC address query"), true);  }
 
 # set class
 $Snmp = new phpipamSNMP ();
@@ -83,7 +83,7 @@ foreach ($permitted_devices_arp as $d) {
     try {
         $res = $Snmp->get_query("get_arp_table");
         // remove those not in subnet
-        if (sizeof($res)>0) {
+        if (is_array($res) && sizeof($res)>0) {
            // save for debug
            $debug[$d->hostname]["get_arp_table"] = $res;
            // check
@@ -117,7 +117,7 @@ foreach ($permitted_devices_mac as $d) {
     try {
         $res = $Snmp->get_query("get_mac_table");
         // remove those not in subnet
-        if (sizeof($res)>0) {
+        if (is_array($res) && sizeof($res)>0) {
            // save for debug
            $debug[$d->hostname]["get_mac_table"] = $res;
            // save found
@@ -159,18 +159,17 @@ foreach ($found_mac as $mac) {
 }
 
 // remove duplicates
-foreach ($found as $k1=>$f) {
-    foreach ($found as $k2=>$f1) {
-        if ($k1!=$k2) {
-            if ($f['mac']==$f1['mac'] && $f['device']==$f1['device']) {
-                unset($found[$k1]);
-            }
-        }
-    }
+$mac_lookup = [];
 
-    // remove Port-channel
-    if(strpos(strtolower($f['port']), "port-channel")!==false) {
-        unset($found[$k1]);
+foreach ($found as $k=>$f) {
+    $dev = $f['device'];
+    $mac = $f['mac'];
+
+    // remove duplicate macs on same device & Port-channels
+    if(isset($mac_lookup[$dev][$mac]) || stripos($f['port'], "port-channel")!==false) {
+        unset($found[$k]);
+    } else {
+        $mac_lookup[$dev][$mac] = 1;
     }
 }
 
@@ -218,7 +217,7 @@ else {
 
 
 	//form
-	print "<form name='scan-snmp-mac-form' class='scan-snmp-mac-form'>";
+	print "<form name='snmp-mac-form' class='snmp-mac-form'>";
 	print "<table class='table table-striped table-top table-condensed'>";
 
 	// titles
@@ -310,9 +309,9 @@ else {
         			elseif($field['type'] == "date" || $field['type'] == "datetime") {
         				// just for first
         				if($timeP==0) {
-        					print '<link rel="stylesheet" type="text/css" href="css/bootstrap/bootstrap-datetimepicker.min.css">';
-        					print '<script type="text/javascript" src="js/bootstrap-datetimepicker.min.js"></script>';
-        					print '<script type="text/javascript">';
+        					print '<link rel="stylesheet" type="text/css" href="css/bootstrap/bootstrap-datetimepicker.min.css?v='.SCRIPT_PREFIX.'">';
+        					print '<script src="js/bootstrap-datetimepicker.min.js?v='.SCRIPT_PREFIX.'"></script>';
+        					print '<script>';
         					print '$(document).ready(function() {';
         					//date only
         					print '	$(".datepicker").datetimepicker( {pickDate: true, pickTime: false, pickSeconds: false });';
@@ -365,7 +364,7 @@ else {
 	print "<tr>";
 	print "	<td colspan='$colspan'>";
 	print "<div id='subnetScanAddResult'></div>";
-	print "		<a href='' class='btn btn-sm btn-success pull-right' id='saveScanResults' data-script='scan-snmp-mac' data-subnetId='".$_POST['subnetId']."'><i class='fa fa-plus'></i> "._("Add discovered hosts")."</a>";
+	print "		<a href='' class='btn btn-sm btn-success pull-right' id='saveScanResults' data-script='snmp-mac' data-subnetId='".$_POST['subnetId']."'><i class='fa fa-plus'></i> "._("Add discovered hosts")."</a>";
 	print "	</td>";
 	print "</tr>";
 

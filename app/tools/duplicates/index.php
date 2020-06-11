@@ -12,7 +12,7 @@ $duplicated_ids_addresses = [];
 
 
 # Find duplicate subnets and hosts
-$duplicate_subnets   = $Database->getObjectsQuery("select subnet,mask,count(*) as cnt from subnets where isFolder = 0 group by `subnet`,`mask` having cnt > 1;");
+$duplicate_subnets   = $Database->getObjectsQuery("select subnet,mask,count(*) as cnt from subnets where `isFolder` = 0 group by `subnet`,`mask` having cnt > 1;");
 $duplicate_addresses = $Database->getObjectsQuery("select ip_addr,count(*) as cnt from ipaddresses group by ip_addr having cnt > 1;");
 
 
@@ -22,9 +22,9 @@ if (sizeof($duplicate_subnets)>0) {
         $subnets = $Database->getObjectsQuery("select * from subnets where subnet = ? and mask = ?", [$s->subnet, $s->mask]);
         if (sizeof($subnets)>0) {
             foreach ($subnets as $subnet) {
-                permission
+                // permission
 
-                save
+                // save
             }
         }
     }

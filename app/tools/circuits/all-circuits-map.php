@@ -1,16 +1,19 @@
 <?php
 
+# Check we have been included and not called directly
+require( dirname(__FILE__) . '/../../../functions/include-only.php' );
+
 #
 # Prints map of all Circuits
 #
 
 # perm check
-$User->check_module_permissions ("circuits", 1, true, false);
+$User->check_module_permissions ("circuits", User::ACCESS_R, true, false);
 
 # title
 if(isset($_GET['map_specific']) && $_GET['map_specific'] == 'true'){
     print "<h3>"._('Map of circuits')."</h3>";
-    $circuits_to_map = unserialize($_GET['circuits_to_map']);
+    $circuits_to_map = json_decode($_GET['circuits_to_map'], true);
 }else{
     print "<h3>"._('Map of all circuits')."</h3>";
 }
@@ -32,7 +35,7 @@ $all_locations = [];
 foreach($locations as $l){ $all_locations[$l->id] = $l; }
 
 // check
-if ($User->settings->enableLocations=="1" && (!isset($gmaps_api_key) || strlen($gmaps_api_key)==0)) {
+if ($User->settings->enableLocations=="1" && strlen(Config::ValueOf('gmaps_api_key'))==0) {
     $Result->show("info text-center nomargin", _("Location: Google Maps API key is unset. Please configure config.php \$gmaps_api_key to enable."));
 }
 //elseif ($locA->name!=="/" && $locB->name!=="/") { ?
@@ -63,7 +66,7 @@ elseif(true) {
 
     // print
     if (sizeof($all_locations)>0) { ?>
-        <script type="text/javascript">
+        <script>
             $(document).ready(function() {
                 // init gmaps
                 var map = new GMaps({

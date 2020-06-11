@@ -17,7 +17,7 @@ $Result 	= new Result ();
 # verify that user is logged in
 $User->check_user_session();
 # perm check
-$User->check_module_permissions ("circuits", 3, true, false);
+$User->check_module_permissions ("circuits", User::ACCESS_RWA, true, false);
 
 # validate csrf cookie
 $User->Crypto->csrf_cookie ("validate", "circuit_options", $_POST['csrf_cookie']) === false ? $Result->show("danger", _("Invalid CSRF cookie"), true) : "";
@@ -50,4 +50,6 @@ if(!$Admin->object_modify("circuitTypes", $_POST['action'], "id", $values))  { $
 else                                                                         { $Result->show("success", _("Option $_POST[action] success"), false); }
 
 # updates values to default
-$Admin->update_object_references ("circuits", "type", $_POST['op_id'], 1);
+if (is_numeric($_POST['op_id'])) {
+  $Admin->update_object_references ("circuits", "type", $_POST['op_id'], 1);
+}

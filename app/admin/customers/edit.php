@@ -17,10 +17,10 @@ $Result 	= new Result ();
 $User->check_user_session();
 # verify module permissions
 if($_POST['action']=="edit") {
-	$User->check_module_permissions ("customers", 2, true, true);
+	$User->check_module_permissions ("customers", User::ACCESS_RW, true, true);
 }
 else {
-	$User->check_module_permissions ("customers", 3, true, true);
+	$User->check_module_permissions ("customers", User::ACCESS_RWA, true, true);
 }
 
 # create csrf token
@@ -45,6 +45,7 @@ if($_POST['action']!="add") {
 } else {
 	# generate new code
 	$customer = new StdClass;
+	$customer->id = null;
 	# title
 	$title = _('Add new customer');
 }

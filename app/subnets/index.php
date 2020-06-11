@@ -80,10 +80,10 @@ if ($User->settings->enableNAT==1) {
             <?php if($User->is_admin(false)) { ?>
             <li role='presentation' <?php if(@$_GET['sPage']=="permissions") print "class='active'"; ?>><a href='<?php print create_link("subnets", $subnet['sectionId'], $subnet['id'], "permissions"); ?>'><?php print _("Permissions"); ?></a></li>
             <?php } ?>
-            <?php if($User->settings->enableNAT==1 && $User->get_module_permissions ("nat")>0) { ?>
+            <?php if($User->settings->enableNAT==1 && $User->get_module_permissions ("nat")>=User::ACCESS_R) { ?>
             <li role='presentation' <?php if(@$_GET['sPage']=="nat") print "class='active'"; ?>> <a href='<?php print create_link("subnets", $subnet['sectionId'], $subnet['id'], "nat"); ?>'><?php print _("NAT"); ?></a></li>
             <?php } ?>
-            <?php if($User->settings->enableLocations==1 && $User->get_module_permissions ("locations")>0) { ?>
+            <?php if($User->settings->enableLocations==1 && $User->get_module_permissions ("locations")>=User::ACCESS_R) { ?>
             <li role='presentation' <?php if(@$_GET['sPage']=="location") print "class='active'"; ?>> <a href='<?php print create_link("subnets", $subnet['sectionId'], $subnet['id'], "location"); ?>'><?php print _("Location"); ?></a></li>
             <?php } ?>
             <li role='presentation' <?php if(@$_GET['sPage']=="changelog") print " class='active'"; ?>> <a href='<?php print create_link("subnets", $subnet['sectionId'], $subnet['id'], "changelog"); ?>'><?php print _("Changelog"); ?></a></li>
@@ -124,6 +124,13 @@ if ($User->settings->enableNAT==1) {
 		<?php
 		if($slaves) {
 			$slave_subnets = (array) $Subnets->fetch_subnet_slaves ($subnet['id']);
+			// check slave permissions
+			foreach($slave_subnets as $k=>$slave) {
+				if ($Subnets->check_permission($User->user, $slave->id, $slave) == 0) {
+					unset($slave_subnets[$k]);
+				}
+			}
+			$slave_subnets = array_values($slave_subnets);
 			include('subnet-slaves.php');
 		}
 		?>
@@ -142,12 +149,11 @@ if ($User->settings->enableNAT==1) {
 	<!-- visual subnet display -->
 	<div class="col-xs-12">
 	<?php
-	if($Subnets->identify_address($subnet['subnet']) == "IPv4") {
-		if($User->settings->visualLimit > 0) {
-			if($User->settings->visualLimit <= $subnet['mask'] && !$slaves) {
+		if(!$slaves && $User->settings->visualLimit > 0) {
+			$max_visual_hosts_subnet = (object) ['subnet'=>'10.0.0.0', 'mask'=>$User->settings->visualLimit, 'isPool'=>true];
+			if($Subnets->max_hosts($subnet) <= $Subnets->max_hosts($max_visual_hosts_subnet)) {
 				include('subnet-visual.php');
 			}
-		}
 	}
 	?>
 	</div>
